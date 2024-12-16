@@ -3,7 +3,9 @@ A Plug-in for Generating Periodic Composite Cells with Random Sphere Inclusions 
 
 Developer: Youngbin LIM <br>
 Contact: lyb0684@naver.com
-![Supported Geometry](https://github.com/user-attachments/assets/7c023dd4-374c-4e3e-b166-bb550976b409)
+
+![Github_Fig](https://github.com/user-attachments/assets/1a052819-8632-4088-ad77-bc3f86ed2595)
+
 
 # Supported versions
 Abaqus 2022 and higher
