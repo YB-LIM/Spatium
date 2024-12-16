@@ -4,7 +4,8 @@ A Plug-in for Generating Periodic Composite Cells with Random Sphere Inclusions 
 Developer: Youngbin LIM <br>
 Contact: lyb0684@naver.com
 
-![Supported Geometry](https://github.com/user-attachments/assets/4956f703-5a89-4059-bd8a-11ae94a637bc)
+
+![Supported Geometry](https://github.com/user-attachments/assets/ad84966c-24f4-4a5a-99a1-a29d6152d623)
 
 
 # Supported versions
