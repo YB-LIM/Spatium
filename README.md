@@ -13,7 +13,7 @@ Abaqus 2022 and higher
 Download the contents in SpheroPAK3D and put those files in one folder. Move the folder to the abaqus_plugins directory (ex: C:\Users\User_Name\abaqus_plugins). Restart the Abaqus/CAE and the plug-in will be available whenever the Abaqus/CAE is running. The plug-in is activated for all modules and can be found in Plug-ins drop down menu.
 
 # Geometry and Mesh
-Spheres with random sizes are generated based on user-defined parameter (avaerage radius and standard deviation of radius <br>
+Spheres with random sizes are generated based on user-defined parameter (avaerage radius and standard deviation of radius) <br>
 Periodic images of spheres are generated as well, thus, geometry is fully periodic <br> However, free meshing is applied and the mesh is not periodic. <br> 
 Thus, surface elements with regular mesh is generated and tied with the cell surface to enforce the periodic boundary condition <br>
 
