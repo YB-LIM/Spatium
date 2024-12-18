@@ -14,8 +14,11 @@ Download the contents in SpheroPAK3D and put those files in one folder. Move the
 
 # Geometry and Mesh
 Spheres with random sizes are generated based on user-defined parameter (avaerage radius and standard deviation of radius) <br>
-Periodic images of spheres are generated as well, thus, geometry is fully periodic <br> However, free meshing is applied and the mesh is not periodic. <br> 
+Periodic images of spheres are generated along with random sphere generation, meaning that the geometry is completely periodic <br> However, free meshing algorithm in Abaqus is used and the mesh is not periodic. <br>
 Thus, surface elements with regular mesh is generated and tied with the cell surface to enforce the periodic boundary condition <br>
+
+# Periodic boundary condition
+
 
 # Disclaimer
 The author do not represent DASSAULT SYSTEMES SIMULIA CORP (Collectively "DS") and the plug-in is not part of official product provided by DS. Your use of this download shall be at your sole risk. No support of any kind of the download is provided by DS. Regarding the inquiries on the plug-in, please contact developer.
