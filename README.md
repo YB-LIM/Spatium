@@ -17,6 +17,9 @@ Spheres with random sizes are generated based on user-defined parameter (avaerag
 Periodic images of spheres are generated along with random sphere generation, meaning that the geometry is completely periodic <br> However, free meshing algorithm in Abaqus is used and the mesh is not periodic. <br>
 Thus, surface elements with regular mesh is generated and tied with the cell surface to enforce the periodic boundary condition <br>
 
+![Github_Fig_2](https://github.com/user-attachments/assets/280ba2e4-bf56-49a5-bc3c-5ab5d0d27ed3)
+
+
 # Periodic boundary condition
 
 
