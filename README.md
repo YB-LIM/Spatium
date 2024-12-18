@@ -21,6 +21,10 @@ Thus, surface elements with regular mesh is generated and tied with the cell sur
 
 
 # Periodic boundary condition
+Rectangular shell part is generated and then meshed with surface elements (SFM3D4). The surface elements are tied with RVE cell surface to enforce the periodic boudnary conditions <br>
+Face, edge and corner node sets are first generated and equation constraints are applied.
+
+
 
 
 # Disclaimer
