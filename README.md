@@ -20,7 +20,7 @@ Periodic images of spheres are generated along with random sphere generation, me
 
 
 # Periodic boundary condition
-Rectangular shell part is generated and then meshed with surface elements (SFM3D4). The surface elements are tied with RVE cell surface to enforce the periodic boudnary conditions. Face, edge and corner node sets are first generated and equation constraints are applied. Hide the surface element part in Abaqus/Viewer when analyzing the results
+Rectangular shell part is generated and then meshed with surface elements (SFM3D4). The surface elements are tied with RVE cell surface to enforce the periodic boudnary conditions. Face, edge and corner node sets are first generated and equation constraints are applied. The surface elements has no stiffness and doesn't affect the stiffness of system. Hide the surface element part in Abaqus/Viewer when analyzing the results
 
 ![Github_Fig_3](https://github.com/user-attachments/assets/b6bd69f2-9500-46f9-a3ea-978e2561a142)
 
