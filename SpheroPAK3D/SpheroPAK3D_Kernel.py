@@ -121,11 +121,6 @@ class VoxelGrid:
 
         self.occupied[i_min:i_max+1, j_min:j_max+1, k_min:k_max+1] = True
 
-
-########################################################################
-# Octree-based classes from your original code
-########################################################################
-
 class OctreeNode:
     def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max, 
                  capacity=4, depth=0, max_depth=10):
@@ -214,7 +209,6 @@ class OctreeNode:
 
         return candidates
 
-
 class Octree:
     """A simple wrapper around the root node."""
     def __init__(self, L, capacity=4, max_depth=10):
@@ -231,12 +225,6 @@ class Octree:
 
     def query_spheres(self, center, radius):
         return self.root.query(center, radius)
-
-
-########################################################################
-# is_overlapping — modified to include voxel-based sampling
-# (but GeneratePBCell remains intact!)
-########################################################################
 
 # Create a global (or external) voxelGrid reference. If you prefer, you can
 # make it a class variable or pass it around. As long as we don't modify
