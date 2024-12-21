@@ -24,6 +24,7 @@ Is_Porous      : Flag for porous material
                  Porous    
 max_iterations : Maximum number of iteration to generate spheres
 """
+
 import numpy as np
 from itertools import product
 from abaqus import *
@@ -31,67 +32,188 @@ from abaqusConstants import *
 from caeModules import *
 from driverUtils import executeOnCaeStartup
 
-def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance, max_iterations, Mode, Disp):
+class OctreeNode:
+    def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max, 
+                 capacity=4, depth=0, max_depth=10):
+        self.x_min, self.x_max = x_min, x_max
+        self.y_min, self.y_max = y_min, y_max
+        self.z_min, self.z_max = z_min, z_max
+        self.capacity = capacity
+        self.depth = depth
+        self.max_depth = max_depth
+        self.spheres = []    # list of (center, radius)
+        self.children = []   # octants
+
+    def subdivide(self):
+        """Split current node into 8 children (octants)."""
+        x_mid = 0.5 * (self.x_min + self.x_max)
+        y_mid = 0.5 * (self.y_min + self.y_max)
+        z_mid = 0.5 * (self.z_min + self.z_max)
+
+        for (x0, x1) in [(self.x_min, x_mid), (x_mid, self.x_max)]:
+            for (y0, y1) in [(self.y_min, y_mid), (y_mid, self.y_max)]:
+                for (z0, z1) in [(self.z_min, z_mid), (z_mid, self.z_max)]:
+                    child = OctreeNode(
+                        x_min=x0, x_max=x1,
+                        y_min=y0, y_max=y1,
+                        z_min=z0, z_max=z1,
+                        capacity=self.capacity,
+                        depth=self.depth + 1,
+                        max_depth=self.max_depth
+                    )
+                    self.children.append(child)
+
+    def insert(self, center, radius):
+        """Insert a new sphere into this node or its children."""
+        cx, cy, cz = center
+
+        # If the center isn't in this node's bounding box, skip
+        if not (self.x_min <= cx <= self.x_max and
+                self.y_min <= cy <= self.y_max and
+                self.z_min <= cz <= self.z_max):
+            return False
+
+        # If we have room or we're at max depth, store here
+        if len(self.spheres) < self.capacity or self.depth == self.max_depth:
+            self.spheres.append((center, radius))
+            return True
+
+        # Otherwise, subdivide if not already done
+        if not self.children:
+            self.subdivide()
+
+        # Attempt to insert into each child
+        for child in self.children:
+            if child.insert(center, radius):
+                return True
+
+        return False
+
+    def query(self, center, radius):
+        """
+        Return a list of candidate spheres in or near the bounding
+        region of (center, radius).
+        """
+        cx, cy, cz = center
+
+        # Bounds for the query region
+        qx_min = cx - radius
+        qx_max = cx + radius
+        qy_min = cy - radius
+        qy_max = cy + radius
+        qz_min = cz - radius
+        qz_max = cz + radius
+
+        # If query region doesn't intersect this node, return empty
+        if (qx_max < self.x_min or qx_min > self.x_max or
+            qy_max < self.y_min or qy_min > self.y_max or
+            qz_max < self.z_min or qz_min > self.z_max):
+            return []
+
+        # Otherwise, gather candidates from this node
+        candidates = []
+        candidates.extend(self.spheres)
+
+        # And from children
+        for child in self.children:
+            candidates.extend(child.query(center, radius))
+
+        return candidates
+
+
+class Octree:
+    """A simple wrapper around the root node."""
+    def __init__(self, L, capacity=4, max_depth=10):
+        self.root = OctreeNode(
+            x_min=0.0, x_max=L,
+            y_min=0.0, y_max=L,
+            z_min=0.0, z_max=L,
+            capacity=capacity,
+            max_depth=max_depth
+        )
+
+    def insert_sphere(self, center, radius):
+        self.root.insert(center, radius)
+
+    def query_spheres(self, center, radius):
+        return self.root.query(center, radius)
+
+
+def is_overlapping(Sphere_array_unused, center, radius, L, min_distance, octree):
+    """
+    Replaces the original is_overlapping check with an octree-based approach.
+    The Sphere_array parameter is no longer needed for direct distance checks
+    but is kept in the function signature so the rest of the code does not break.
+
+    We still do the minimum image convention for periodic boundaries.
+    """
+    # Query the octree for nearby spheres (use a buffer)
+    # This buffer ensures we find all spheres that might be "too close".
+    search_radius = radius + min_distance + L/8.  # Adjust as needed
+    nearby_spheres = octree.query_spheres(center, search_radius)
+
+    for (center2, radius2) in nearby_spheres:
+        # Minimum image logic for periodic boundaries
+        dx = center[0] - center2[0]
+        dx -= L * np.round(dx / L)
+        dy = center[1] - center2[1]
+        dy -= L * np.round(dy / L)
+        dz = center[2] - center2[2]
+        dz -= L * np.round(dz / L)
+
+        dist2 = dx*dx + dy*dy + dz*dz
+        radii_sum = radius + radius2 + min_distance
+        if dist2 < radii_sum * radii_sum:
+            return True
+
+    return False
+
+def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance, 
+                   max_iterations, Mode, Disp):
     #################################################################
     # Generate numpy array that contains center position and radius #
     #################################################################
-    #Show stop button
+    # Show stop button
     showStopButtonInGui()
     VoF = 0.0
     Sphere_array = np.empty((0, 4))
-    
-    def is_overlapping(sphere_array, center, radius, L, min_distance):
-        """
-        Check if the sphere at 'center' with 'radius' overlaps with any sphere in 'sphere_array'.
-        Accounts for periodic boundary conditions using the minimum image convention.
-        """
-        for s in sphere_array:
-            center2 = s[:3]
-            radius2 = s[3]
-    
-            dx = center[0] - center2[0]
-            dx -= L * np.round(dx / L)
-            dy = center[1] - center2[1]
-            dy -= L * np.round(dy / L)
-            dz = center[2] - center2[2]
-            dz -= L * np.round(dz / L)
-    
-            dist2 = dx * dx + dy * dy + dz * dz
-            radii_sum = radius + radius2 + min_distance
-            if dist2 < radii_sum * radii_sum:
-                return True  # Overlaps or too close
-        return False  # Does not overlap
-    
+
+    # -------------------------------------------------------
+    # Initialize the Octree for overlap checks
+    # -------------------------------------------------------
+    # Increase capacity or max_depth if many spheres
+    octree = Octree(L, capacity=8, max_depth=10)
+
     iterations = 0
-    
+
     while VoF <= VoF_tar and iterations < max_iterations:
         iterations += 1
-    
+
         # Generate sphere using random PDF
         center_X = L * np.random.rand()
         center_Y = L * np.random.rand()
         center_Z = L * np.random.rand()
         center = np.array([center_X, center_Y, center_Z])
         radius = np.random.normal(r_avg, r_std)
-    
+
         # Skip negative or zero radii
         if radius <= 0:
             continue
-    
-        # Check if the sphere overlaps with existing spheres
-        if is_overlapping(Sphere_array, center, radius, L, min_distance):
+
+        # Check if the sphere overlaps with existing spheres using octree
+        if is_overlapping(Sphere_array, center, radius, L, min_distance, octree):
             continue  # Discard this sphere and try again
-    
+
         # Adjust the radius to account for min_distance when checking boundaries
         effective_radius = radius + min_distance / 2
-    
+
         # Determine if the sphere overlaps with any boundaries
         Is_inside = (
             effective_radius < center_X < L - effective_radius and
             effective_radius < center_Y < L - effective_radius and
             effective_radius < center_Z < L - effective_radius
         )
-    
+
         # Boundary overlap checks
         Is_X_Left = center_X - effective_radius < 0
         Is_X_Right = center_X + effective_radius > L
@@ -99,104 +221,115 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance, ma
         Is_Y_Back = center_Y + effective_radius > L
         Is_Z_Lower = center_Z - effective_radius < 0
         Is_Z_Upper = center_Z + effective_radius > L
-    
-        # Add the sphere(s) to Sphere_array and update VoF
+
+        # Function to check overlapping portion
+        def check_overlap_portion(center_coord, L_, r_, is_left, is_right):
+            if is_left:
+                d = center_coord
+            elif is_right:
+                d = L_ - center_coord
+            else:
+                return False  # Does not overlap in this direction
+
+            if d <= 0 or r_ - d <= 0:
+                return True  # Invalid, exclude
+            Tol_ = 0.4
+            ratio = d / (r_ - d)
+            if ratio < Tol_ or (1 / ratio) < Tol_:
+                return True  # Overlapping portion is too small
+            return False  # Overlapping portion is acceptable
+
+        overlaps_too_small = False
+        if Is_X_Left or Is_X_Right:
+            if check_overlap_portion(center_X, L, radius, Is_X_Left, Is_X_Right):
+                overlaps_too_small = True
+
+        if Is_Y_Front or Is_Y_Back:
+            if check_overlap_portion(center_Y, L, radius, Is_Y_Front, Is_Y_Back):
+                overlaps_too_small = True
+
+        if Is_Z_Lower or Is_Z_Upper:
+            if check_overlap_portion(center_Z, L, radius, Is_Z_Lower, Is_Z_Upper):
+                overlaps_too_small = True
+
+        if overlaps_too_small:
+            continue  # Discard this sphere and try again
+
+        # ------------------------------------------------------------------
+        # Case A: Sphere is fully inside; just add it & insert into octree
+        # ------------------------------------------------------------------
         if Is_inside:
             new_row = np.array([[center_X, center_Y, center_Z, radius]])
             Sphere_array = np.vstack((Sphere_array, new_row))
-            VoF += (4.0 / 3.0) * np.pi * radius ** 3 / L ** 3
-    
+            VoF += (4.0 / 3.0) * np.pi * (radius ** 3) / (L ** 3)
+
+            # Insert into octree
+            octree.insert_sphere(center, radius)
+
         else:
-            # Before generating mirrored spheres, check overlapping portions
-            overlaps_too_small = False
-    
-            # Function to check overlapping portion
-            def check_overlap_portion(center_coord, L, radius, is_left, is_right):
-                if is_left:
-                    d = center_coord
-                elif is_right:
-                    d = L - center_coord
-                else:
-                    return False  # Does not overlap in this direction
-    
-                if d <= 0 or radius - d <= 0:
-                    return True  # Invalid, exclude
-                Tol = 0.4
-                ratio = d / (radius - d)
-                if ratio < Tol or (1 / ratio) < Tol:
-                    return True  # Overlapping portion is too small
-                return False  # Overlapping portion is acceptable
-    
-            # Check for each axis
-            if Is_X_Left or Is_X_Right:
-                if check_overlap_portion(center_X, L, radius, Is_X_Left, Is_X_Right):
-                    overlaps_too_small = True
-    
-            if Is_Y_Front or Is_Y_Back:
-                if check_overlap_portion(center_Y, L, radius, Is_Y_Front, Is_Y_Back):
-                    overlaps_too_small = True
-    
-            if Is_Z_Lower or Is_Z_Upper:
-                if check_overlap_portion(center_Z, L, radius, Is_Z_Lower, Is_Z_Upper):
-                    overlaps_too_small = True
-    
-            if overlaps_too_small:
-                continue  # Discard this sphere and try again
-    
+            # ------------------------------------------------------------------
+            # Case B: Sphere crosses boundary => create mirrored spheres
+            # ------------------------------------------------------------------
             new_rows = []
-            # Start with the original sphere
-            new_rows.append([center_X, center_Y, center_Z, radius])
-    
+            new_rows.append([center_X, center_Y, center_Z, radius])  # original
+
             # Generate shifts for each axis based on boundary overlaps
             x_shifts = [0]
             if Is_X_Left:
                 x_shifts.append(L)
             if Is_X_Right:
                 x_shifts.append(-L)
-    
+
             y_shifts = [0]
             if Is_Y_Front:
                 y_shifts.append(L)
             if Is_Y_Back:
                 y_shifts.append(-L)
-    
+
             z_shifts = [0]
             if Is_Z_Lower:
                 z_shifts.append(L)
             if Is_Z_Upper:
                 z_shifts.append(-L)
-    
-            # Generate all combinations of shifts
+
+            # Create mirrored spheres based on shift combinations
             shift_combinations = list(product(x_shifts, y_shifts, z_shifts))
-            shift_combinations.remove((0, 0, 0))  # Remove the original sphere position
-    
-            # Create mirrored spheres based on the shift combinations
+            shift_combinations.remove((0, 0, 0))  # remove original shift
             for dx, dy, dz in shift_combinations:
                 x_new = center_X + dx
                 y_new = center_Y + dy
                 z_new = center_Z + dz
                 new_rows.append([x_new, y_new, z_new, radius])
-    
-            # Remove duplicates
+
+            # Remove duplicates (if the same center was produced more than once)
             unique_new_rows = []
             for row in new_rows:
                 if not any(np.allclose(row[:3], r[:3]) for r in unique_new_rows):
                     unique_new_rows.append(row)
-    
-            # Check for overlaps with existing spheres
+
+            # Check for overlaps with existing spheres in octree
             overlaps = False
             for row in unique_new_rows:
-                if is_overlapping(Sphere_array, np.array(row[:3]), row[3], L, min_distance):
+                c_ = np.array(row[:3])
+                r_ = row[3]
+                if is_overlapping(Sphere_array, c_, r_, L, min_distance, octree):
                     overlaps = True
                     break
-    
+
             if overlaps:
-                continue  # Discard this sphere and try again
-    
-            # Add new spheres to the Sphere_array
+                continue  # Discard entire set and try again
+
+            # If no overlaps, add them all
             Sphere_array = np.vstack((Sphere_array, unique_new_rows))
-            VoF += (4.0 / 3.0) * np.pi * radius ** 3 / L ** 3
-            
+            # Increase volume only once for the real sphere
+            VoF += (4.0 / 3.0) * np.pi * (radius ** 3) / (L ** 3)
+
+            # Insert all new centers into octree
+            for row in unique_new_rows:
+                c_ = np.array(row[:3])
+                r_ = row[3]
+                octree.insert_sphere(c_, r_)
+
     Number_of_Sphere = Sphere_array.shape[0]
     
     ##########################################
