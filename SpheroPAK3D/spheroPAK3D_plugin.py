@@ -26,7 +26,7 @@ class SpheroPAK3D_plugin(AFXForm):
         self.r_avgKw = AFXFloatKeyword(self.cmd, 'r_avg', True, 0.04)
         self.r_stdKw = AFXFloatKeyword(self.cmd, 'r_std', True, 0.005)
         self.VoF_tarKw = AFXFloatKeyword(self.cmd, 'VoF_tar', True, 0.2)
-        self.min_distanceKw = AFXFloatKeyword(self.cmd, 'min_distance', True, 0.02)
+        self.min_distanceKw = AFXFloatKeyword(self.cmd, 'min_distance', True, 0.001)
         self.max_iterationsKw = AFXIntKeyword(self.cmd, 'max_iterations', True, 100000)
         self.ModeKw = AFXStringKeyword(self.cmd, 'Mode', True, 'Uniaxial Tension')
         self.DispKw = AFXFloatKeyword(self.cmd, 'Disp', True, 0.007)
