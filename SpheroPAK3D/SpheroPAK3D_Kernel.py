@@ -125,9 +125,9 @@ class Octree:
     """A simple wrapper around the root node."""
     def __init__(self, L, capacity=4, max_depth=10):
         self.root = OctreeNode(
-            x_min=0.0, x_max=L,
-            y_min=0.0, y_max=L,
-            z_min=0.0, z_max=L,
+            x_min=-0.2*L, x_max=1.2*L,
+            y_min=-0.2*L, y_max=1.2*L,
+            z_min=-0.2*L, z_max=1.2*L,
             capacity=capacity,
             max_depth=max_depth
         )
