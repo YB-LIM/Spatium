@@ -99,27 +99,43 @@ class VoxelGrid:
         subarray = self.occupied[i_min:i_max+1, j_min:j_max+1, k_min:k_max+1]
         return np.any(subarray)  # True if any voxel is occupied
 
-    def mark_occupied(self, center, radius):
+    def mark_voxels_for_sphere(voxel_grid, sphere_center, sphere_radius, L, voxel_size):
         """
-        Mark voxels that fall under the bounding box of this sphere as occupied (True).
+        Marks voxels as occupied for the sphere and its periodic images.
+    
+        Parameters:
+        - voxel_grid: 3D numpy array representing the voxel grid.
+        - sphere_center: Center of the sphere (x, y, z).
+        - sphere_radius: Radius of the sphere.
+        - L: Size of the domain.
+        - voxel_size: Size of each voxel.
         """
-        cx, cy, cz = center
-        cx_period = cx % self.L
-        cy_period = cy % self.L
-        cz_period = cz % self.L
-        
-        r_margin = radius + 0.5 * self.voxel_size
-        x_min = max(0.0, cx_period - r_margin)
-        x_max = min(self.L, cx_period + r_margin)
-        y_min = max(0.0, cy_period - r_margin)
-        y_max = min(self.L, cy_period + r_margin)
-        z_min = max(0.0, cz_period - r_margin)
-        z_max = min(self.L, cz_period + r_margin)
+        shifts = [-L, 0, L]  # For periodic images
+        x, y, z = sphere_center
+        r = sphere_radius
+    
+        for dx in shifts:
+            for dy in shifts:
+                for dz in shifts:
+                    # Adjust for periodic images
+                    x_new = x + dx
+                    y_new = y + dy
+                    z_new = z + dz
+    
+                    # Compute voxel indices for the bounding box of the sphere
+                    x_min = int(max(0, (x_new - r) // voxel_size))
+                    x_max = int(min(voxel_grid.shape[0] - 1, (x_new + r) // voxel_size))
+                    y_min = int(max(0, (y_new - r) // voxel_size))
+                    y_max = int(min(voxel_grid.shape[1] - 1, (y_new + r) // voxel_size))
+                    z_min = int(max(0, (z_new - r) // voxel_size))
+                    z_max = int(min(voxel_grid.shape[2] - 1, (z_new + r) // voxel_size))
+    
+                    # Mark voxels as occupied
+                    voxel_grid[x_min:x_max + 1, y_min:y_max + 1, z_min:z_max + 1] = True
 
-        i_min, j_min, k_min = self._xyz_to_ijk(x_min, y_min, z_min)
-        i_max, j_max, k_max = self._xyz_to_ijk(x_max, y_max, z_max)
-
-        self.occupied[i_min:i_max+1, j_min:j_max+1, k_min:k_max+1] = True
+########################################################################
+# Octree-based classes from your original code
+########################################################################
 
 class OctreeNode:
     def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max, 
@@ -208,6 +224,7 @@ class OctreeNode:
             candidates.extend(child.query(center, radius))
 
         return candidates
+
 
 class Octree:
     """A simple wrapper around the root node."""
