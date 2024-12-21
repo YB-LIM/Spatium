@@ -12,7 +12,7 @@ r_avg          : Average radius of sphere
 r_std          : Standard deviation of radius of sphere
 VoF_tar        : Target volume fraction of a unit cell
 min_distance   : Minimum allowable distance between spheres
-Tol            : Minimum overlaping portion
+Tol            : Minimum overlapping portion
 Mode           : Deformation mode 
                  Uniaxial tension        
                  Confined compression   
@@ -31,6 +31,100 @@ from abaqus import *
 from abaqusConstants import *
 from caeModules import *
 from driverUtils import executeOnCaeStartup
+
+class VoxelGrid:
+    """
+    A simple 3D grid that marks which 'voxel cells' are occupied by spheres.
+    This helps skip random points that obviously fall into already-occupied space.
+    """
+
+    def __init__(self, L, min_distance, resolutionFactor=2):
+        """
+        :param L: Size of the cell
+        :param min_distance: Minimum center-to-center distance between spheres
+        :param resolutionFactor: Increase to get finer voxel spacing.
+                                (Voxel size = min_distance / resolutionFactor)
+        """
+        # Define the voxel size
+        self.voxel_size = float(min_distance) / float(resolutionFactor)
+        # Number of voxels along each dimension
+        self.nx = int(np.ceil(L / self.voxel_size))
+        self.ny = int(np.ceil(L / self.voxel_size))
+        self.nz = int(np.ceil(L / self.voxel_size))
+        
+        # Occupancy array; False means "free," True means "occupied"
+        self.occupied = np.zeros((self.nx, self.ny, self.nz), dtype=bool)
+        self.L = L
+
+    def _xyz_to_ijk(self, x, y, z):
+        """
+        Convert continuous coordinates (x,y,z) in [0,L] to integer voxel indices (i,j,k).
+        We'll clamp to [0, nx-1], etc., just for safety in edge cases.
+        """
+        i = int(np.floor(x / self.voxel_size))
+        j = int(np.floor(y / self.voxel_size))
+        k = int(np.floor(z / self.voxel_size))
+        i = max(0, min(self.nx - 1, i))
+        j = max(0, min(self.ny - 1, j))
+        k = max(0, min(self.nz - 1, k))
+        return i, j, k
+
+    def is_occupied(self, center, radius):
+        """
+        Check if the sphere with given (center, radius) intersects any already-occupied voxel.
+        We do a bounding-box over the voxel grid and see if any voxel in that region is True.
+        """
+        # We have to handle periodic offsets in x,y,z
+        cx, cy, cz = center
+        # Because we do periodic boundary checks in the main code,
+        # we only consider direct bounding box in [0, L].
+        # If center is outside [0,L], wrap it in [0,L] for voxel check:
+        cx_period = cx % self.L
+        cy_period = cy % self.L
+        cz_period = cz % self.L
+        
+        # bounding box in voxel coords
+        r_margin = radius + 0.5 * self.voxel_size
+        x_min = max(0.0, cx_period - r_margin)
+        x_max = min(self.L, cx_period + r_margin)
+        y_min = max(0.0, cy_period - r_margin)
+        y_max = min(self.L, cy_period + r_margin)
+        z_min = max(0.0, cz_period - r_margin)
+        z_max = min(self.L, cz_period + r_margin)
+
+        i_min, j_min, k_min = self._xyz_to_ijk(x_min, y_min, z_min)
+        i_max, j_max, k_max = self._xyz_to_ijk(x_max, y_max, z_max)
+
+        # Loop through that voxel region to see if any is True
+        subarray = self.occupied[i_min:i_max+1, j_min:j_max+1, k_min:k_max+1]
+        return np.any(subarray)  # True if any voxel is occupied
+
+    def mark_occupied(self, center, radius):
+        """
+        Mark voxels that fall under the bounding box of this sphere as occupied (True).
+        """
+        cx, cy, cz = center
+        cx_period = cx % self.L
+        cy_period = cy % self.L
+        cz_period = cz % self.L
+        
+        r_margin = radius + 0.5 * self.voxel_size
+        x_min = max(0.0, cx_period - r_margin)
+        x_max = min(self.L, cx_period + r_margin)
+        y_min = max(0.0, cy_period - r_margin)
+        y_max = min(self.L, cy_period + r_margin)
+        z_min = max(0.0, cz_period - r_margin)
+        z_max = min(self.L, cz_period + r_margin)
+
+        i_min, j_min, k_min = self._xyz_to_ijk(x_min, y_min, z_min)
+        i_max, j_max, k_max = self._xyz_to_ijk(x_max, y_max, z_max)
+
+        self.occupied[i_min:i_max+1, j_min:j_max+1, k_min:k_max+1] = True
+
+
+########################################################################
+# Octree-based classes from your original code
+########################################################################
 
 class OctreeNode:
     def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max, 
@@ -139,17 +233,32 @@ class Octree:
         return self.root.query(center, radius)
 
 
+########################################################################
+# is_overlapping — modified to include voxel-based sampling
+# (but GeneratePBCell remains intact!)
+########################################################################
+
+# Create a global (or external) voxelGrid reference. If you prefer, you can
+# make it a class variable or pass it around. As long as we don't modify
+# GeneratePBCell, we do it here.
+voxelGrid = None  # Will be assigned before calling GeneratePBCell
+
 def is_overlapping(Sphere_array_unused, center, radius, L, min_distance, octree):
     """
     Replaces the original is_overlapping check with an octree-based approach.
-    The Sphere_array parameter is no longer needed for direct distance checks
-    but is kept in the function signature so the rest of the code does not break.
+    Now also checks a voxel grid to skip obviously occupied space.
 
-    We still do the minimum image convention for periodic boundaries.
+    We do the minimum image convention for periodic boundaries
+    (the same as the original code).
     """
-    # Query the octree for nearby spheres (use a buffer)
-    # This buffer ensures we find all spheres that might be "too close".
-    search_radius = radius + min_distance + L/8.  # Adjust as needed
+    global voxelGrid
+    if voxelGrid is not None:
+        # First, check if the bounding volume is occupied in the voxel grid
+        if voxelGrid.is_occupied(center, radius):
+            return True
+
+    # Query the octree for nearby spheres
+    search_radius = radius + min_distance + L/8.0
     nearby_spheres = octree.query_spheres(center, search_radius)
 
     for (center2, radius2) in nearby_spheres:
@@ -165,6 +274,12 @@ def is_overlapping(Sphere_array_unused, center, radius, L, min_distance, octree)
         radii_sum = radius + radius2 + min_distance
         if dist2 < radii_sum * radii_sum:
             return True
+
+    # If we got here => no overlap with any existing spheres
+    # Mark the voxel space as occupied so no subsequent sphere tries
+    # to place in the same region.
+    if voxelGrid is not None:
+        voxelGrid.mark_occupied(center, radius)
 
     return False
 
@@ -270,6 +385,7 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
             # ------------------------------------------------------------------
             # Case B: Sphere crosses boundary => create mirrored spheres
             # ------------------------------------------------------------------
+            from itertools import product
             new_rows = []
             new_rows.append([center_X, center_Y, center_Z, radius])  # original
 
