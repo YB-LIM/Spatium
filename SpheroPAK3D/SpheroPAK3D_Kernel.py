@@ -133,10 +133,6 @@ class VoxelGrid:
                     # Mark voxels as occupied
                     voxel_grid[x_min:x_max + 1, y_min:y_max + 1, z_min:z_max + 1] = True
 
-########################################################################
-# Octree-based classes from your original code
-########################################################################
-
 class OctreeNode:
     def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max, 
                  capacity=4, depth=0, max_depth=10):
@@ -249,13 +245,6 @@ class Octree:
 voxelGrid = None  # Will be assigned before calling GeneratePBCell
 
 def is_overlapping(Sphere_array_unused, center, radius, L, min_distance, octree):
-    """
-    Replaces the original is_overlapping check with an octree-based approach.
-    Now also checks a voxel grid to skip obviously occupied space.
-
-    We do the minimum image convention for periodic boundaries
-    (the same as the original code).
-    """
     global voxelGrid
     if voxelGrid is not None:
         # First, check if the bounding volume is occupied in the voxel grid
