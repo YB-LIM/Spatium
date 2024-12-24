@@ -4,7 +4,8 @@ A Plug-in for Generating Periodic Composite Cells with Random Sphere Inclusions 
 Developer: Youngbin LIM <br>
 Contact: lyb0684@naver.com
 
-![Github_Fig](https://github.com/user-attachments/assets/bb6609c8-fb16-44e2-9507-a87ced5df065)
+![image](https://github.com/user-attachments/assets/435cd454-bc40-49c0-a8b5-3d880ff02343)
+
 
 # Supported versions
 Abaqus 2022 and higher
