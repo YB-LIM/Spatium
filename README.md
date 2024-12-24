@@ -19,7 +19,7 @@ Spheres with random sizes are generated based on user-defined parameters (averag
 
 
 # Periodic boundary condition
-A rectangular shell part is created and meshed with surface elements (SFM3D4). These surface elements are tied to the RVE cell surface to enforce periodic boundary conditions. Face, edge, and corner node sets are first generated, and equation constraints are applied. The surface elements have no stiffness and do not affect the overall stiffness of the system. When analyzing the results in Abaqus/Viewer, hide the surface element part to avoid visual clutter.
+A rectangular shell part is created and meshed with surface elements (SFM3D4). These surface elements are tied to the RVE cell surface to enforce periodic boundary conditions. Face, edge, and corner node sets are first generated, and equation constraints are applied. The surface elements have no stiffness and do not affect the overall stiffness of the system. When analyzing the results in Abaqus/Viewer, hide the surface element part.
 
 ![Fig](https://github.com/user-attachments/assets/92e38222-745b-4eed-966c-726d71a88ea4)
 
