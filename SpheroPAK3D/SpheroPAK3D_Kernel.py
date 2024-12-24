@@ -14,10 +14,10 @@ VoF_tar        : Target volume fraction of a unit cell
 min_distance   : Minimum allowable distance between spheres
 Tol            : Minimum overlapping portion
 Mode           : Deformation mode 
-                 Uniaxial tension        
+                 Uniaxial tension 
+                 Biaxial tension
                  Confined compression   
-                 Simple shear-side free 
-                 Simple shear-side fixed
+                 Simple shear 
 Disp           : Displacement for RP 
 Is_Porous      : Flag for porous material
                  Composite
@@ -133,6 +133,10 @@ class VoxelGrid:
                     # Mark voxels as occupied
                     voxel_grid[x_min:x_max + 1, y_min:y_max + 1, z_min:z_max + 1] = True
 
+########################################################################
+# Octree-based classes from your original code
+########################################################################
+
 class OctreeNode:
     def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max, 
                  capacity=4, depth=0, max_depth=10):
@@ -245,6 +249,13 @@ class Octree:
 voxelGrid = None  # Will be assigned before calling GeneratePBCell
 
 def is_overlapping(Sphere_array_unused, center, radius, L, min_distance, octree):
+    """
+    Replaces the original is_overlapping check with an octree-based approach.
+    Now also checks a voxel grid to skip obviously occupied space.
+
+    We do the minimum image convention for periodic boundaries
+    (the same as the original code).
+    """
     global voxelGrid
     if voxelGrid is not None:
         # First, check if the bounding volume is occupied in the voxel grid
@@ -1591,6 +1602,28 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
             region=region, u1=UNSET, u2=UNSET, u3=Disp, ur1=0.0, ur2=0.0, ur3=0.0, 
             amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
             localCsys=None)
+    elif Mode=='Biaxial Tension': #Biaxial tension
+        # RP-1
+        a = mdb.models['Model-1'].rootAssembly
+        region = a.sets['RP-1']
+        mdb.models['Model-1'].DisplacementBC(name='RP-1', createStepName='Step-1', 
+            region=region, u1=UNSET, u2=UNSET, u3=UNSET, ur1=0.0, ur2=0.0, ur3=0.0, 
+            amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
+            localCsys=None)
+        # RP-2
+        a = mdb.models['Model-1'].rootAssembly
+        region = a.sets['RP-2']
+        mdb.models['Model-1'].DisplacementBC(name='RP-2', createStepName='Step-1', 
+            region=region, u1=UNSET, u2=Disp, u3=UNSET, ur1=0.0, ur2=0.0, ur3=0.0, 
+            amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
+            localCsys=None)
+        # RP-3
+        a = mdb.models['Model-1'].rootAssembly
+        region = a.sets['RP-3']
+        mdb.models['Model-1'].DisplacementBC(name='RP-3', createStepName='Step-1', 
+            region=region, u1=UNSET, u2=UNSET, u3=Disp, ur1=0.0, ur2=0.0, ur3=0.0, 
+            amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
+            localCsys=None)
     elif Mode=='Confined Compression': #Confined Compression
         # RP-1
         a = mdb.models['Model-1'].rootAssembly
@@ -1613,7 +1646,7 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
             region=region, u1=0.0, u2=0.0, u3=-Disp, ur1=0.0, ur2=0.0, ur3=0.0, 
             amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
             localCsys=None)
-    elif Mode=='Simple Shear-Side Free': #Simple Shear (Side free)
+    elif Mode=='Simple Shear': #Simple Shear (Side free)
         # Add constraint for shear motion
         a = mdb.models['Model-1'].rootAssembly
         a.ReferencePoint(point=(L/2., L/2., L/2.))
@@ -1680,79 +1713,6 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
             region=region, u1=Disp, u2=UNSET, u3=0.0, ur1=0.0, ur2=0.0, ur3=0.0, 
             amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
             localCsys=None)
-    elif Mode=='Simple Shear-Side Fix': #Simple Shear (Side fix)
-        # Add constraint for shear motion
-        a = mdb.models['Model-1'].rootAssembly
-        a.ReferencePoint(point=(L/2., L/2., L/2.))
-        refPointFound = a.referencePoints.findAt((L/2., L/2., L/2.),)
-        a.Set(name='RP-4', referencePoints=(refPointFound,))
-        # Z FACES
-        mdb.models['Model-1'].Equation(name='Z_FACES_DOF_1', terms=(
-            (-1.0, 'PBC_Surface-1.Z_Pos_FACE', 1),
-            ( 1.0, 'PBC_Surface-1.Z_Neg_FACE', 1),
-            ( 1.0, 'RP-4', 1)))
-        # X EDGE_1
-        mdb.models['Model-1'].Equation(name='X_EDGES_1_DOF_1', terms=(
-            ( 1.0, 'PBC_Surface-1.X_YNeg_ZPos_EDGE',1),
-            (-1.0, 'PBC_Surface-1.X_YNeg_ZNeg_EDGE',1),
-            (-1.0, 'RP-4', 1)))
-        # X EDGE_3
-        mdb.models['Model-1'].Equation(name='X_EDGES_3_DOF_1', terms=(
-            ( 1.0, 'PBC_Surface-1.X_YPos_ZNeg_EDGE',1),
-            (-1.0, 'PBC_Surface-1.X_YPos_ZPos_EDGE',1),
-            ( 1.0, 'RP-4', 1)))
-        # Y EDGE_1
-        mdb.models['Model-1'].Equation(name='Y_EDGES_1_DOF_1', terms=(
-            ( 1.0, 'PBC_Surface-1.Y_XNeg_ZPos_EDGE',1),
-            (-1.0, 'PBC_Surface-1.Y_XNeg_ZNeg_EDGE',1),
-            (-1.0, 'RP-4', 1)))
-        # Y EDGES_3
-        mdb.models['Model-1'].Equation(name='Y_EDGES_3_DOF_1', terms=(
-            ( 1.0, 'PBC_Surface-1.Y_XPos_ZNeg_EDGE',1),
-            (-1.0, 'PBC_Surface-1.Y_XPos_ZPos_EDGE',1),
-            ( 1.0, 'RP-4', 1)))
-        # CORNERS
-        mdb.models['Model-1'].Equation(name='Corner_001_000_DOF_1', terms=(
-            ( 1.0,'PBC_Surface-1.Corner_001',1),
-            (-1.0,'PBC_Surface-1.Corner_000',1),
-            (-1.0, 'RP-4', 1)))
-        mdb.models['Model-1'].Equation(name='Corner_000_101_DOF_1', terms=(
-            (-1.0,'PBC_Surface-1.Corner_000',1),
-            ( 1.0,'PBC_Surface-1.Corner_101',1),
-            (-1.0,'RP-4', 1)))
-        mdb.models['Model-1'].Equation(name='Corner_101_100_DOF_1', terms=(
-            ( 1.0,'PBC_Surface-1.Corner_101',1),
-            (-1.0,'PBC_Surface-1.Corner_100',1),
-            (-1.0, 'RP-4', 1)))
-        mdb.models['Model-1'].Equation(name='Corner_100_011_DOF_1', terms=(
-            (-1.0,'PBC_Surface-1.Corner_100',1),
-            ( 1.0,'PBC_Surface-1.Corner_011',1),
-            (-1.0,'RP-4', 1)))
-        mdb.models['Model-1'].Equation(name='Corner_011_010_DOF_1', terms=(
-            ( 1.0,'PBC_Surface-1.Corner_011',1),
-            (-1.0,'PBC_Surface-1.Corner_010',1),
-            (-1.0, 'RP-4', 1)))
-        mdb.models['Model-1'].Equation(name='Corner_010_111_DOF_1', terms=(
-            (-1.0,'PBC_Surface-1.Corner_010',1),
-            ( 1.0,'PBC_Surface-1.Corner_111',1),
-            (-1.0,'RP-4', 1)))
-        mdb.models['Model-1'].Equation(name='Corner_111_110_DOF_1', terms=(
-            ( 1.0,'PBC_Surface-1.Corner_111',1),
-            (-1.0,'PBC_Surface-1.Corner_110',1),
-            (-1.0, 'RP-4', 1)))
-        # Disp BC
-        a = mdb.models['Model-1'].rootAssembly
-        region = a.sets['RP-2']
-        mdb.models['Model-1'].DisplacementBC(name='RP-2', createStepName='Step-1', 
-            region=region, u1=UNSET, u2=0.0, u3=UNSET, ur1=0.0, ur2=0.0, ur3=0.0, 
-            amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
-            localCsys=None)    
-        a = mdb.models['Model-1'].rootAssembly
-        region = a.sets['RP-4']
-        mdb.models['Model-1'].DisplacementBC(name='RP-4', createStepName='Step-1', 
-            region=region, u1=Disp, u2=UNSET, u3=0.0, ur1=0.0, ur2=0.0, ur3=0.0, 
-            amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
-            localCsys=None) 
     
     # Display the model on Assembly module
     a = mdb.models['Model-1'].rootAssembly
