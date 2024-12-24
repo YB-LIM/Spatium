@@ -1677,7 +1677,7 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
         a = mdb.models['Model-1'].rootAssembly
         region = a.sets['RP-4']
         mdb.models['Model-1'].DisplacementBC(name='RP-4', createStepName='Step-1', 
-            region=region, u1=Disp, u2=0.0, u3=0.0, ur1=0.0, ur2=0.0, ur3=0.0, 
+            region=region, u1=Disp, u2=UNSET, u3=0.0, ur1=0.0, ur2=0.0, ur3=0.0, 
             amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
             localCsys=None)
     elif Mode=='Simple Shear-Side Fix': #Simple Shear (Side fix)
@@ -1750,7 +1750,7 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
         a = mdb.models['Model-1'].rootAssembly
         region = a.sets['RP-4']
         mdb.models['Model-1'].DisplacementBC(name='RP-4', createStepName='Step-1', 
-            region=region, u1=Disp, u2=0.0, u3=0.0, ur1=0.0, ur2=0.0, ur3=0.0, 
+            region=region, u1=Disp, u2=UNSET, u3=0.0, ur1=0.0, ur2=0.0, ur3=0.0, 
             amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
             localCsys=None) 
     
