@@ -4,6 +4,10 @@ import os
 
 Target_Strain = 0.035
 Epsilon = np.log(1+Target_Strain)
+# For simple shear
+#Target_Gamma = 0.035
+#Eng_strain = Target_Gamma/np.sqrt(1+(Target_Gamma**2.)/4.)
+#Epsilon = np.log(1 + Eng_strain)
 
 # Get any .odb file in the current directory
 odb_files = [f for f in os.listdir('.') if f.endswith('.odb')]
@@ -44,8 +48,10 @@ for frame_idx, frame in enumerate(step.frames):
         element_label = stress.elementLabel
         if element_label in volume_dict:
             element_volume = volume_dict[element_label]
-            s_mises = stress.mises  # Von Mises stress
-            total_stress_volume += s_mises * element_volume
+            s33 = stress.data[2]
+            # For simple shear
+            #s13 = abs(stress.data[4])
+            total_stress_volume += s33 * element_volume
             total_volume += element_volume
 
     # Compute volume-averaged stress for this frame
