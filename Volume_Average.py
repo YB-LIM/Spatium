@@ -48,10 +48,10 @@ for frame_idx, frame in enumerate(step.frames):
         element_label = stress.elementLabel
         if element_label in volume_dict:
             element_volume = volume_dict[element_label]
-            s33 = stress.data[2]
+            s = stress.data[2]
             # For simple shear
-            #s13 = abs(stress.data[4])
-            total_stress_volume += s33 * element_volume
+            #s = abs(stress.data[4])
+            total_stress_volume += s * element_volume
             total_volume += element_volume
 
     # Compute volume-averaged stress for this frame
