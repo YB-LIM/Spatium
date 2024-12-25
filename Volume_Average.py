@@ -56,7 +56,7 @@ for frame_idx, frame in enumerate(step.frames):
 
     # Compute volume-averaged stress for this frame
     volume_avg_stress = total_stress_volume / total_volume if total_volume > 0 else 0.0
-    # Multiply time by 0.035
+    # Multiply time by true strain
     strain = frame.frameValue * Epsilon
     output.append((strain, volume_avg_stress))
 
