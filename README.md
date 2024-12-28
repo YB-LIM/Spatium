@@ -1,4 +1,4 @@
-# SpheroPAK3D
+# Spatium
 A Plug-in for Generating Periodic Composite Cells with Random Sphere Inclusions in Abaqus/CAE
 
 Developer: Youngbin LIM <br>
