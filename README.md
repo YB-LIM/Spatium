@@ -29,5 +29,6 @@ A rectangular shell part is created and meshed with surface elements (SFM3D4). T
 ![Fig](https://github.com/user-attachments/assets/92e38222-745b-4eed-966c-726d71a88ea4)
 
 
-# Disclaimer
+Disclaimer
+--------------------------
 The author do not represent DASSAULT SYSTEMES SIMULIA CORP (Collectively "DS") and the plug-in is not part of official product provided by DS. Your use of this download shall be at your sole risk. No support of any kind of the download is provided by DS. Regarding the inquiries on the plug-in, please contact developer.
