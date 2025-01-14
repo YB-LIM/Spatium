@@ -1,5 +1,5 @@
 # Spatium
-A Plug-in for Computational Homogenization of Particle-Reinforced Composite with Spherical Inclusions in Abaqus/CAE
+Plug-in for Computational Homogenization of Particle-Reinforced Composite with Spherical Inclusions in Abaqus/CAE
 
 Developer: Youngbin LIM <br>
 Contact: lyb0684@naver.com
