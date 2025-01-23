@@ -597,14 +597,14 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     e, d = p.edges, p.datums
     Sketch_Edge = e.findAt(((L, L/2., 0), ))[0]
     t = p.MakeSketchTransform(sketchPlane=d[2], sketchUpEdge=Sketch_Edge, 
-        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.20503, 0.203913, 
+        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.0, 0.0, 
         0.0))
-    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=1.99, 
-        gridSpacing=0.04, transform=t)
+    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=L, 
+        gridSpacing=L/50.0, transform=t)
     g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
     s.setPrimaryObject(option=SUPERIMPOSE)
     p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-    s.rectangle(point1=(-3*L, 3*L), point2=(3*L, -3*L))
+    s.rectangle(point1=(-10*L, 10*L), point2=(10*L, -10*L))
     p.CutExtrude(sketchPlane=d[2], sketchUpEdge=Sketch_Edge, sketchPlaneSide=SIDE1, 
         sketchOrientation=RIGHT, sketch=s, flipExtrudeDirection=OFF)
     s.unsetPrimaryObject()
@@ -615,14 +615,14 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     e, d = p.edges, p.datums
     Sketch_Edge = e.findAt(((0, L, L/2.), ))[0]
     t = p.MakeSketchTransform(sketchPlane=d[7], sketchUpEdge=Sketch_Edge, 
-        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.20503, 0.203913, 
+        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.0, 0.0, 
         0.0))
-    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=1.99, 
-        gridSpacing=0.04, transform=t)
+    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=L, 
+        gridSpacing=L/50., transform=t)
     g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
     s.setPrimaryObject(option=SUPERIMPOSE)
     p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-    s.rectangle(point1=(-3*L, 3*L), point2=(3*L, -3*L))
+    s.rectangle(point1=(-10*L, 10*L), point2=(10*L, -10*L))
     p.CutExtrude(sketchPlane=d[7], sketchUpEdge=Sketch_Edge, sketchPlaneSide=SIDE1, 
         sketchOrientation=RIGHT, sketch=s, flipExtrudeDirection=ON)
     s.unsetPrimaryObject()
@@ -633,14 +633,14 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     e, d = p.edges, p.datums
     Sketch_Edge = e.findAt(((L, L/2., L), ))[0]
     t = p.MakeSketchTransform(sketchPlane=d[3], sketchUpEdge=Sketch_Edge, 
-        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.20503, 0.203913, 
+        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.0, 0.0, 
         0.0))
-    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=1.99, 
-        gridSpacing=0.04, transform=t)
+    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=L, 
+        gridSpacing=L/50., transform=t)
     g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
     s.setPrimaryObject(option=SUPERIMPOSE)
     p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-    s.rectangle(point1=(-3*L, 3*L), point2=(3*L, -3*L))
+    s.rectangle(point1=(-10*L, 10*L), point2=(10*L, -10*L))
     p.CutExtrude(sketchPlane=d[3], sketchUpEdge=Sketch_Edge, sketchPlaneSide=SIDE1, 
         sketchOrientation=RIGHT, sketch=s, flipExtrudeDirection=ON)
     s.unsetPrimaryObject()
@@ -651,14 +651,14 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     e, d = p.edges, p.datums
     Sketch_Edge = e.findAt(((L, L, L/2.), ))[0]
     t = p.MakeSketchTransform(sketchPlane=d[6], sketchUpEdge=Sketch_Edge, 
-        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.20503, 0.203913, 
+        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.0, 0.0, 
         0.0))
-    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=1.99, 
-        gridSpacing=0.04, transform=t)
+    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=L, 
+        gridSpacing=L/50., transform=t)
     g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
     s.setPrimaryObject(option=SUPERIMPOSE)
     p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-    s.rectangle(point1=(-3*L, 3*L), point2=(3*L, -3*L))
+    s.rectangle(point1=(-10*L, 10*L), point2=(10*L, -10*L))
     p.CutExtrude(sketchPlane=d[6], sketchUpEdge=Sketch_Edge, sketchPlaneSide=SIDE1, 
         sketchOrientation=RIGHT, sketch=s, flipExtrudeDirection=OFF)
     s.unsetPrimaryObject()
@@ -669,14 +669,14 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     e, d = p.edges, p.datums
     Sketch_Edge = e.findAt(((L, L/2., 0.), ))[0]
     t = p.MakeSketchTransform(sketchPlane=d[5], sketchUpEdge=Sketch_Edge, 
-        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.20503, 0.203913, 
+        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.0, 0.0, 
         0.0))
-    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=1.99, 
-        gridSpacing=0.04, transform=t)
+    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=L, 
+        gridSpacing=L/50., transform=t)
     g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
     s.setPrimaryObject(option=SUPERIMPOSE)
     p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-    s.rectangle(point1=(-3*L, 3*L), point2=(3*L, -3*L))
+    s.rectangle(point1=(-10*L, 10*L), point2=(10*L, -10*L))
     p.CutExtrude(sketchPlane=d[5], sketchUpEdge=Sketch_Edge, sketchPlaneSide=SIDE1, 
         sketchOrientation=RIGHT, sketch=s, flipExtrudeDirection=ON)
     s.unsetPrimaryObject()
@@ -687,14 +687,14 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     e, d = p.edges, p.datums
     Sketch_Edge = e.findAt(((0., L/2., 0.), ))[0]
     t = p.MakeSketchTransform(sketchPlane=d[4], sketchUpEdge=Sketch_Edge, 
-        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.20503, 0.203913, 
+        sketchPlaneSide=SIDE1, sketchOrientation=RIGHT, origin=(0.0, 0.0, 
         0.0))
-    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=1.99, 
-        gridSpacing=0.04, transform=t)
+    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=L, 
+        gridSpacing=L/50., transform=t)
     g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
     s.setPrimaryObject(option=SUPERIMPOSE)
     p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-    s.rectangle(point1=(-3*L, 3*L), point2=(3*L, -3*L))
+    s.rectangle(point1=(-10*L, 10*L), point2=(10*L, -10*L))
     p.CutExtrude(sketchPlane=d[4], sketchUpEdge=Sketch_Edge, sketchPlaneSide=SIDE1, 
         sketchOrientation=RIGHT, sketch=s, flipExtrudeDirection=OFF)
     s.unsetPrimaryObject()
