@@ -768,7 +768,7 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     pickedRegions =(cells, )
     elemType1 = mesh.ElemType(elemCode=C3D8R, elemLibrary=STANDARD)
     elemType2 = mesh.ElemType(elemCode=C3D6, elemLibrary=STANDARD)
-    elemType3 = mesh.ElemType(elemCode=C3D4, elemLibrary=STANDARD, 
+    elemType3 = mesh.ElemType(elemCode=C3D4H, elemLibrary=STANDARD, 
         secondOrderAccuracy=OFF, distortionControl=DEFAULT)
     p.setElementType(regions=pickedRegions, elemTypes=(elemType1, elemType2, 
         elemType3))
