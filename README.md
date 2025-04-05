@@ -9,7 +9,7 @@ Contact: lyb0684@naver.com
 
 Supported versions
 --------------------------
-Spatium: Abaqus 2024 and higher <br>
+Abaqus 2024 and higher <br>
 
 Installation
 --------------------------
