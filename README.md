@@ -9,7 +9,7 @@ Contact: lyb0684@naver.com
 
 Supported versions
 --------------------------
-Spatium &nbsp;: Abaqus 2022 and higher <br>
+Spatium &nbsp; &nbsp; &nbsp; : Abaqus 2022 and higher <br>
 Volume average : Abaqus 2024 and higher
 
 Installation
