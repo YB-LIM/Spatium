@@ -132,15 +132,23 @@ def generate_ss_curve(EngStrain, Odb_Path, Output_Path, S_Comp, Plot_Flag):
                 stress_val = float(parts[1])
                 xy_data.append((strain_val, stress_val))
 
-        # Create a new viewport (or reuse one)
+        # Create (or reuse) a viewport
         if 'Viewport: 1' not in session.viewports:
             session.Viewport(name='Viewport: 1', origin=(0.0, 0.0), width=200, height=150)
 
         session.viewports['Viewport: 1'].makeCurrent()
         session.viewports['Viewport: 1'].maximize()
 
-        # Create the XYPlot object
-        xyp = session.XYPlot(name='XYPlot-VolumeAveraged')
+        # Create a unique name for the XYPlot if one already exists
+        base_plot_name = 'XYPlot-VolumeAveraged'
+        plot_name = base_plot_name
+        i = 1
+        while plot_name in session.xyPlots.keys():
+            plot_name = base_plot_name + '_' + str(i)
+            i += 1
+
+        # Create the XYPlot object with the new unique name
+        xyp = session.XYPlot(name=plot_name)
         chartName = xyp.charts.keys()[0]
         chart = xyp.charts[chartName]
 
@@ -165,8 +173,7 @@ def generate_ss_curve(EngStrain, Odb_Path, Output_Path, S_Comp, Plot_Flag):
         session.viewports['Viewport: 1'].setValues(displayedObject=xyp)
 
         # Optionally adjust symbol style, legend, etc.
-        # (The internal "name" for the curve can vary, so we use the curve object directly)
         curve.symbolStyle.setValues(show=True, size=2)
         curve.setValues(useDefault=False, legendLabel='Vol_Avg_Stress')
 
-        print("Plot created in Abaqus/CAE window.")
+        print("Plot created in Abaqus/CAE window: {}".format(plot_name))
