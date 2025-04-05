@@ -30,7 +30,7 @@ A rectangular shell part is created and meshed with surface elements (SFM3D4). T
 
 Volume average
 --------------------------
-The homogenized stress-strain curve is obtained by using the following equation. The volume average feature is provided as seperate plug-in.
+The homogenized stress-strain curve is obtained by using the following equation. The volume average feature is provided as a seperate plug-in in the repository.
 
 ![image](https://github.com/user-attachments/assets/bd732954-9da2-414b-90e5-88b9b1a449ed)
 
