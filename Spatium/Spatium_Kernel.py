@@ -275,13 +275,13 @@ def is_overlapping(Sphere_array_unused, center, radius, L, min_distance, octree)
 
     return False
 
+voxelGrid = None
+
 def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance, 
                    max_iterations, Mode, Disp):
     #################################################################
     # Generate numpy array that contains center position and radius #
     #################################################################
-    # Show stop button
-    showStopButtonInGui()
     VoF = 0.0
     Sphere_array = np.empty((0, 4))
 
@@ -1724,6 +1724,7 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     
     if VoF < VoF_tar:
         print("The target volume fraction was not achieved within the max number of iteration!")
+    pass
 
 def generate_ss_curve(EngStrain, Odb_Path, Output_Path, S_Comp, Plot_Flag):
     """
@@ -1743,9 +1744,6 @@ def generate_ss_curve(EngStrain, Odb_Path, Output_Path, S_Comp, Plot_Flag):
     Plot_Flag : bool
         If True, create an XY plot in Abaqus/CAE using the generated data.
     """
-    # Safety check: this script must run in Abaqus' Python environment
-    showStopButtonInGui()
-
     # Convert engineering strain to true strain
     Epsilon = np.log(1.0 + EngStrain)
 
@@ -1890,14 +1888,14 @@ def generate_ss_curve(EngStrain, Odb_Path, Output_Path, S_Comp, Plot_Flag):
         curve.setValues(useDefault=False, legendLabel='Vol_Avg_Stress')
 
         print("Plot created in Abaqus/CAE window: {}".format(plot_name))
+    pass
 
 def excecute(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance, 
              max_iterations, Mode, Disp, EngStrain, Odb_Path, Output_Path, 
-             S_Comp, Plot_Flag):
-    showStopButtonInGui()
+             S_Comp, Plot_Flag, action):
     
-    # 1) If Odb_Path or Output_Path is empty, run GeneratePBCell
-    if not Odb_Path or not Output_Path:
+    if action == 'generate_pbc':
+        showStopButtonInGui()    
         GeneratePBCell(
             Is_Porous=Is_Porous,
             L=L,
@@ -1910,9 +1908,8 @@ def excecute(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
             Mode=Mode,
             Disp=Disp
         )
-    # 2) If Odb_Path and Output_Path are both non-empty, 
-    #    run generate_ss_curve instead
-    else:
+    elif action == 'generate_ss_curve':
+        showStopButtonInGui()
         generate_ss_curve(
             EngStrain=EngStrain, 
             Odb_Path=Odb_Path, 
@@ -1920,3 +1917,5 @@ def excecute(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
             S_Comp=S_Comp, 
             Plot_Flag=Plot_Flag
         )
+    else:
+        raise ValueError("Invalid action: {}".format(action))
