@@ -6,34 +6,20 @@ import os
 thisPath = os.path.abspath(__file__)
 thisDir = os.path.dirname(thisPath)
 
-
-###########################################################################
-# Class definition
-###########################################################################
-
 class Spatium_v2DB(AFXDataDialog):
+    ID_APPLY_MODEL = AFXDataDialog.ID_LAST
+    ID_APPLY_HOMOG = ID_APPLY_MODEL + 1
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, form):
+        self.form = form
+        AFXDataDialog.__init__(self, form, 'Spatium', 0)
 
-        # Construct the base class.
-        #
-
-        AFXDataDialog.__init__(self, form, 'Spatium',
-            self.OK|self.APPLY|self.CANCEL, DIALOG_ACTIONS_SEPARATOR)
-            
-
-        okBtn = self.getActionButton(self.ID_CLICKED_OK)
-        okBtn.setText('OK')
-            
-
-        applyBtn = self.getActionButton(self.ID_CLICKED_APPLY)
-        applyBtn.setText('Apply')
-            
         TabBook_1 = FXTabBook(p=self, tgt=None, sel=0,
             opts=TABBOOK_NORMAL,
             x=0, y=0, w=0, h=0, pl=DEFAULT_SPACING, pr=DEFAULT_SPACING,
             pt=DEFAULT_SPACING, pb=DEFAULT_SPACING)
+        
+        # Model setup tab
         tabItem = FXTabItem(p=TabBook_1, text='Model setup', ic=None, opts=TAB_TOP_NORMAL,
             x=0, y=0, w=0, h=0, pl=6, pr=6, pt=DEFAULT_PAD, pb=DEFAULT_PAD)
         TabItem_1 = FXVerticalFrame(p=TabBook_1,
@@ -68,7 +54,14 @@ class Spatium_v2DB(AFXDataDialog):
         fileName = os.path.join(thisDir, 'Main.png')
         icon = afxCreatePNGIcon(fileName)
         FXLabel(p=TabItem_1, text='', ic=icon)
-        l = FXLabel(p=TabItem_1, text='Developed by Youngbin LIM', opts=JUSTIFY_LEFT)
+        FXLabel(p=TabItem_1, text='Developed by Youngbin LIM', opts=JUSTIFY_LEFT)
+        HFrame_buttons_1 = FXHorizontalFrame(p=TabItem_1, opts=LAYOUT_FILL_X,
+            pl=DEFAULT_SPACING, pr=DEFAULT_SPACING, pt=DEFAULT_SPACING, pb=DEFAULT_SPACING)
+        FXHorizontalFrame(p=HFrame_buttons_1, opts=LAYOUT_FILL_X)  # Left spring
+        applyBtn1 = FXButton(p=HFrame_buttons_1, text='Generate RVE', tgt=self, sel=self.ID_APPLY_MODEL)
+        FXHorizontalFrame(p=HFrame_buttons_1, opts=LAYOUT_FILL_X)  # Right spring
+
+        # Homogenization tab
         tabItem = FXTabItem(p=TabBook_1, text='Homogenization', ic=None, opts=TAB_TOP_NORMAL,
             x=0, y=0, w=0, h=0, pl=6, pr=6, pt=DEFAULT_PAD, pb=DEFAULT_PAD)
         TabItem_2 = FXVerticalFrame(p=TabBook_1,
@@ -80,25 +73,19 @@ class Spatium_v2DB(AFXDataDialog):
         fileHandler = Spatium_v2DBFileHandler(form, 'Odb_Path', 'All files (*)')
         fileTextHf = FXHorizontalFrame(p=VFrame_8, opts=0, x=0, y=0, w=0, h=0,
             pl=0, pr=0, pt=0, pb=0, hs=DEFAULT_SPACING, vs=DEFAULT_SPACING)
-        # Note: Set the selector to indicate that this widget should not be
-        #       colored differently from its parent when the 'Color layout managers'
-        #       button is checked in the RSG Dialog Builder dialog.
         fileTextHf.setSelector(99)
         AFXTextField(p=fileTextHf, ncols=30, labelText='Odb file:                   ', tgt=form.Odb_PathKw, sel=0,
             opts=AFXTEXTFIELD_STRING|LAYOUT_CENTER_Y)
-        icon = afxGetIcon('fileOpen', AFX_ICON_SMALL )
+        icon = afxGetIcon('fileOpen', AFX_ICON_SMALL)
         FXButton(p=fileTextHf, text='	Select File\nFrom Dialog', ic=icon, tgt=fileHandler, sel=AFXMode.ID_ACTIVATE,
             opts=BUTTON_NORMAL|LAYOUT_CENTER_Y, x=0, y=0, w=0, h=0, pl=1, pr=1, pt=1, pb=1)
         fileHandler = Spatium_v2DBFileHandler(form, 'Output_Path', 'All files (*)')
         fileTextHf = FXHorizontalFrame(p=VFrame_8, opts=0, x=0, y=0, w=0, h=0,
             pl=0, pr=0, pt=0, pb=0, hs=DEFAULT_SPACING, vs=DEFAULT_SPACING)
-        # Note: Set the selector to indicate that this widget should not be
-        #       colored differently from its parent when the 'Color layout managers'
-        #       button is checked in the RSG Dialog Builder dialog.
         fileTextHf.setSelector(99)
         AFXTextField(p=fileTextHf, ncols=30, labelText='Output file:               ', tgt=form.Output_PathKw, sel=0,
             opts=AFXTEXTFIELD_STRING|LAYOUT_CENTER_Y)
-        icon = afxGetIcon('fileOpen', AFX_ICON_SMALL )
+        icon = afxGetIcon('fileOpen', AFX_ICON_SMALL)
         FXButton(p=fileTextHf, text='	Select File\nFrom Dialog', ic=icon, tgt=fileHandler, sel=AFXMode.ID_ACTIVATE,
             opts=BUTTON_NORMAL|LAYOUT_CENTER_Y, x=0, y=0, w=0, h=0, pl=1, pr=1, pt=1, pb=1)
         AFXTextField(p=VFrame_8, ncols=12, labelText='Nominal strain:          ', tgt=form.EngStrainKw, sel=0)
@@ -111,21 +98,30 @@ class Spatium_v2DB(AFXDataDialog):
         ComboBox_3.appendItem(text='S13')
         ComboBox_3.appendItem(text='S23')
         FXCheckButton(p=VFrame_8, text='Plot curve on OK', tgt=form.Plot_FlagKw, sel=0)
-        l2 = FXLabel(p=TabItem_2, text='*Note: Volume averaging is performed when both the ODB and output path are defined', opts=JUSTIFY_LEFT)        
+        #FXLabel(p=TabItem_2, text='*Note: Volume averaging is performed when both the ODB and output path are defined', opts=JUSTIFY_LEFT)
         fileName = os.path.join(thisDir, 'Main2.png')
         icon = afxCreatePNGIcon(fileName)
         FXLabel(p=VFrame_8, text='', ic=icon)
+        HFrame_buttons_2 = FXHorizontalFrame(p=TabItem_2, opts=LAYOUT_FILL_X,
+            pl=DEFAULT_SPACING, pr=DEFAULT_SPACING, pt=DEFAULT_SPACING, pb=DEFAULT_SPACING)
+        FXHorizontalFrame(p=HFrame_buttons_2, opts=LAYOUT_FILL_X)  # Left spring
+        applyBtn2 = FXButton(p=HFrame_buttons_2, text='Run Homogenization', tgt=self, sel=self.ID_APPLY_HOMOG)
+        FXHorizontalFrame(p=HFrame_buttons_2, opts=LAYOUT_FILL_X)  # Right spring
 
+        # Message mappings
+        FXMAPFUNC(self, SEL_COMMAND, self.ID_APPLY_MODEL, Spatium_v2DB.onCmdApplyModel)
+        FXMAPFUNC(self, SEL_COMMAND, self.ID_APPLY_HOMOG, Spatium_v2DB.onCmdApplyHomog)
 
-###########################################################################
-# Class definition
-###########################################################################
+    def onCmdApplyModel(self, sender, sel, ptr):
+        self.form.actionKw.setValue('generate_pbc')
+        self.form.issueCommands()
+
+    def onCmdApplyHomog(self, sender, sel, ptr):
+        self.form.actionKw.setValue('generate_ss_curve')
+        self.form.issueCommands()
 
 class Spatium_v2DBFileHandler(FXObject):
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, form, keyword, patterns='*'):
-
         self.form = form
         self.patterns = patterns
         self.patternTgt = AFXIntTarget(0)
@@ -134,12 +130,10 @@ class Spatium_v2DBFileHandler(FXObject):
         FXObject.__init__(self)
         FXMAPFUNC(self, SEL_COMMAND, AFXMode.ID_ACTIVATE, Spatium_v2DBFileHandler.activate)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def activate(self, sender, sel, ptr):
-
-       fileDb = AFXFileSelectorDialog(getAFXApp().getAFXMainWindow(), 'Select a File',
-           self.fileNameKw, self.readOnlyKw,
-           AFXSELECTFILE_ANY, self.patterns, self.patternTgt)
-       fileDb.setReadOnlyPatterns('*.odb')
-       fileDb.create()
-       fileDb.showModal()
+        fileDb = AFXFileSelectorDialog(getAFXApp().getAFXMainWindow(), 'Select a File',
+            self.fileNameKw, self.readOnlyKw,
+            AFXSELECTFILE_ANY, self.patterns, self.patternTgt)
+        fileDb.setReadOnlyPatterns('*.odb')
+        fileDb.create()
+        fileDb.showModal()
