@@ -2,18 +2,8 @@ from abaqusGui import *
 from abaqusConstants import ALL
 import osutils, os
 
-
-###########################################################################
-# Class definition
-###########################################################################
-
 class Spatium_v2_plugin(AFXForm):
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, owner):
-        
-        # Construct the base class.
-        #
         AFXForm.__init__(self, owner)
         self.radioButtonGroups = {}
 
@@ -31,42 +21,32 @@ class Spatium_v2_plugin(AFXForm):
         self.ModeKw = AFXStringKeyword(self.cmd, 'Mode', True, 'Uniaxial Tension')
         self.DispKw = AFXFloatKeyword(self.cmd, 'Disp', True, 0.007)
         self.Odb_PathKw = AFXStringKeyword(self.cmd, 'Odb_Path', True, '')
-        self.Output_PathKw = AFXStringKeyword(self.cmd, 'Output_Path', True, '')
+        defaultOutputPath = 'SS_Curve.txt'
+        self.Output_PathKw = AFXStringKeyword(self.cmd, 'Output_Path', True, defaultOutputPath)
+        
         self.EngStrainKw = AFXFloatKeyword(self.cmd, 'EngStrain', True, 0.0)
         self.S_CompKw = AFXStringKeyword(self.cmd, 'S_Comp', True, 'S11')
         self.Plot_FlagKw = AFXBoolKeyword(self.cmd, 'Plot_Flag', AFXBoolKeyword.TRUE_FALSE, True, True)
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        self.actionKw = AFXStringKeyword(self.cmd, 'action', True, 'generate_pbc')
+        
     def getFirstDialog(self):
         self.cmd.setKeywordValuesToDefaults()
         import spatium_v2DB
         return spatium_v2DB.Spatium_v2DB(self)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def doCustomChecks(self):
-
-        # Try to set the appropriate radio button on. If the user did
-        # not specify any buttons to be on, do nothing.
-        #
-        for kw1,kw2,d in self.radioButtonGroups.values():
-            try:
-                value = d[ kw1.getValue() ]
-                kw2.setValue(value)
-            except:
-                pass
+        # Check if ODB path and output path are specified
+        if not self.Odb_PathKw.getValue():
+            showAFXErrorDialog(self.getCurrentDialog(), "Error: ODB file path must be specified.")
+            return False
+        if not self.Output_PathKw.getValue():
+            showAFXErrorDialog(self.getCurrentDialog(), "Error: Output file path must be specified.")
+            return False
         return True
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def okToCancel(self):
-
-        # No need to close the dialog when a file operation (such
-        # as New or Open) or model change is executed.
-        #
         return False
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Register the plug-in
-#
 thisPath = os.path.abspath(__file__)
 thisDir = os.path.dirname(thisPath)
 
