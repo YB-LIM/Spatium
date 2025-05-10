@@ -70,7 +70,7 @@ class Spatium_v2DB(AFXDataDialog):
             pt=DEFAULT_SPACING, pb=DEFAULT_SPACING, hs=DEFAULT_SPACING, vs=DEFAULT_SPACING)
         VFrame_8 = FXVerticalFrame(p=TabItem_2, opts=LAYOUT_FILL_X|LAYOUT_FILL_Y, x=0, y=0, w=0, h=0,
             pl=0, pr=0, pt=0, pb=0)
-        fileHandler = Spatium_v2DBFileHandler(form, 'Odb_Path', 'All files (*)')
+        fileHandler = Spatium_v2DBFileHandler(form, 'Odb_Path', 'ODB files (*.odb)')
         fileTextHf = FXHorizontalFrame(p=VFrame_8, opts=0, x=0, y=0, w=0, h=0,
             pl=0, pr=0, pt=0, pb=0, hs=DEFAULT_SPACING, vs=DEFAULT_SPACING)
         fileTextHf.setSelector(99)
@@ -79,7 +79,7 @@ class Spatium_v2DB(AFXDataDialog):
         icon = afxGetIcon('fileOpen', AFX_ICON_SMALL)
         FXButton(p=fileTextHf, text='	Select File\nFrom Dialog', ic=icon, tgt=fileHandler, sel=AFXMode.ID_ACTIVATE,
             opts=BUTTON_NORMAL|LAYOUT_CENTER_Y, x=0, y=0, w=0, h=0, pl=1, pr=1, pt=1, pb=1)
-        fileHandler = Spatium_v2DBFileHandler(form, 'Output_Path', 'All files (*)')
+        fileHandler = Spatium_v2DBFileHandler(form, 'Output_Path', 'Text files (*.txt)')
         fileTextHf = FXHorizontalFrame(p=VFrame_8, opts=0, x=0, y=0, w=0, h=0,
             pl=0, pr=0, pt=0, pb=0, hs=DEFAULT_SPACING, vs=DEFAULT_SPACING)
         fileTextHf.setSelector(99)
