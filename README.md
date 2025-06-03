@@ -41,7 +41,7 @@ The author do not represent DASSAULT SYSTEMES SIMULIA CORP (Collectively "DS") a
 
 Citation:
 --------------------------
-Y. Lim, M. Song, and S. Ha, "Spatium: An open-source Abaqus/CAE plug-in for computational homogenization of particle-reinforced composites" SoftwareX, vol. 31, p. 102219, 2025.<br><br>
+Y. Lim, M. Song, and S. Ha, "Spatium: An open-source Abaqus/CAE plug-in for computational homogenization of particle-reinforced composites" SoftwareX, vol. 31, p. 102219, 2025. DOI: 10.1016/j.softx.2025.102219 <br><br>
 
 LaTex
 ```bibtex
