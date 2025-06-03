@@ -55,4 +55,4 @@ LaTex
   publisher={Elsevier},
   doi={10.1016/j.softx.2025.102219},
   url={https://doi.org/10.1016/j.softx.2025.102219}
-}<br>
+}
