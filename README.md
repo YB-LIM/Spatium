@@ -38,3 +38,21 @@ The homogenized stress-strain curve is obtained by using the following equation.
 Disclaimer
 --------------------------
 The author do not represent DASSAULT SYSTEMES SIMULIA CORP (Collectively "DS") and the plug-in is not part of official product provided by DS. Your use of this download shall be at your sole risk. No support of any kind of the download is provided by DS. Regarding the inquiries on the plug-in, please contact developer.
+
+Citation:
+--------------------------
+Y. Lim, M. Song, and S. Ha, "Spatium: An open-source Abaqus/CAE plug-in for computational homogenization of particle-reinforced composites" SoftwareX, vol. 31, p. 102219, 2025.<br><br>
+
+LaTex
+```bibtex
+@article{lim2025spatium,
+  title={Spatium: An open-source Abaqus/CAE plug-in for computational homogenization of particle-reinforced composites},
+  author={Lim, Youngbin; Song Minseo and Ha, Sangyul},
+  journal={SoftwareX},
+  volume={31},
+  pages={102219},
+  year={2025},
+  publisher={Elsevier},
+  doi={10.1016/j.softx.2025.102219},
+  url={https://doi.org/10.1016/j.softx.2025.102219}
+}<br>
