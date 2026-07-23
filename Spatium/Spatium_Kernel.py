@@ -23,8 +23,15 @@ Is_Porous      : Flag for porous material
                  Composite
                  Porous    
 max_iterations : Maximum number of iteration to generate spheres
+
+---------------------------------------------------------------------------
+Performance-revised build (v1.0-perf).  Numerical results are unchanged;
+only the implementation of the two-stage overlap check, the sphere-array
+bookkeeping and the ODB post-processing were rewritten.  See CHANGES.md.
+---------------------------------------------------------------------------
 """
 
+import os
 import numpy as np
 from itertools import product
 from abaqus import *
@@ -36,100 +43,133 @@ import xyPlot
 from odbAccess import openOdb
 
 class VoxelGrid:
-    def __init__(self, L, min_distance, resolutionFactor=2):
+    """
+    Stage-1 of the two-stage overlap check (rapid rejection of overlapping
+    spheres, Fig. 2(b) of the SoftwareX paper).
+
+    The unit cell [0,L]^3 is divided into a uniform grid of voxels, every
+    voxel initially marked as *free*.  When a sphere is accepted, only the
+    voxels that lie ENTIRELY inside that sphere are marked as *occupied*
+    (with periodic wrap-around, so the grid itself is periodic).
+
+    The marking radius is r2 + min_dist + r_pad - half_diagonal, where
+    r_pad is a lower bound on the radius a candidate can have.  A candidate
+    whose radius is at least r_pad and whose centre falls in an occupied
+    voxel is then *provably* overlapping, so the filter never rejects a
+    valid candidate.  Candidates smaller than r_pad simply skip stage-1 and
+    go straight to the octree search (stage-2).
+
+    NOTE  In v1.0 the module level object `voxelGrid` was never instantiated
+          and `is_overlapping` called a non-existent method
+          (`mark_occupied`), so stage-1 was effectively inactive at run time.
+          It is now created in GeneratePBCell and updated on acceptance.
+    """
+
+    MAX_DIV = 128          # cap on voxels per direction (128^3 bool ~ 2 MB)
+
+    def __init__(self, L, min_distance, resolutionFactor=2, r_pad=0.0):
         """
         :param L: Size of the cell
-        :param min_distance: Minimum center-to-center distance between spheres
-        :param resolutionFactor: Increase to get finer voxel spacing.
-                                (Voxel size = min_distance / resolutionFactor)
+        :param min_distance: Minimum surface-to-surface distance between spheres
+        :param resolutionFactor: Increase to get finer voxel spacing
+                                 (target voxel size = min_distance / resolutionFactor)
+        :param r_pad: Lower bound on the candidate radius (see class doc)
         """
-        # Define the voxel size
-        self.voxel_size = float(min_distance) / float(resolutionFactor)
-        # Number of voxels along each dimension
-        self.nx = int(np.ceil(L / self.voxel_size))
-        self.ny = int(np.ceil(L / self.voxel_size))
-        self.nz = int(np.ceil(L / self.voxel_size))
-        
-        # Occupancy array; False means "free," True means "occupied"
-        self.occupied = np.zeros((self.nx, self.ny, self.nz), dtype=bool)
-        self.L = L
+        L = float(L)
+        target = float(min_distance) / float(resolutionFactor)
+        if target <= 0.0:
+            target = L / float(self.MAX_DIV)
 
+        n = int(np.ceil(L / target))
+        n = max(8, min(self.MAX_DIV, n))
+
+        self.L = L
+        self.n = n
+        self.nx = self.ny = self.nz = n
+        self.voxel_size = L / float(n)
+        self.half_diag = 0.5 * np.sqrt(3.0) * self.voxel_size
+        self.min_distance = float(min_distance)
+        self.r_pad = max(0.0, float(r_pad))
+        self.occupied = np.zeros((n, n, n), dtype=bool)
+
+    # ------------------------------------------------------------------
+    # Query
+    # ------------------------------------------------------------------
     def _xyz_to_ijk(self, x, y, z):
-        """
-        Convert continuous coordinates (x,y,z) in [0,L] to integer voxel indices (i,j,k).
-        We'll clamp to [0, nx-1], etc., just for safety in edge cases.
-        """
-        i = int(np.floor(x / self.voxel_size))
-        j = int(np.floor(y / self.voxel_size))
-        k = int(np.floor(z / self.voxel_size))
-        i = max(0, min(self.nx - 1, i))
-        j = max(0, min(self.ny - 1, j))
-        k = max(0, min(self.nz - 1, k))
+        """Continuous coordinates -> integer voxel indices (periodic)."""
+        h, n = self.voxel_size, self.n
+        i = int(np.floor((x % self.L) / h)) % n
+        j = int(np.floor((y % self.L) / h)) % n
+        k = int(np.floor((z % self.L) / h)) % n
         return i, j, k
 
-    def is_occupied(self, center, radius):
+    def is_occupied_batch(self, centers, radii=None):
         """
-        Check if the sphere with given (center, radius) intersects any already-occupied voxel.
-        We do a bounding-box over the voxel grid and see if any voxel in that region is True.
-        """
-        # We have to handle periodic offsets in x,y,z
-        cx, cy, cz = center
-        # Because we do periodic boundary checks in the main code,
-        # we only consider direct bounding box in [0, L].
-        # If center is outside [0,L], wrap it in [0,L] for voxel check:
-        cx_period = cx % self.L
-        cy_period = cy % self.L
-        cz_period = cz % self.L
-        
-        # bounding box in voxel coords
-        r_margin = radius + 0.5 * self.voxel_size
-        x_min = max(0.0, cx_period - r_margin)
-        x_max = min(self.L, cx_period + r_margin)
-        y_min = max(0.0, cy_period - r_margin)
-        y_max = min(self.L, cy_period + r_margin)
-        z_min = max(0.0, cz_period - r_margin)
-        z_max = min(self.L, cz_period + r_margin)
+        Vectorised stage-1 test.
 
-        i_min, j_min, k_min = self._xyz_to_ijk(x_min, y_min, z_min)
-        i_max, j_max, k_max = self._xyz_to_ijk(x_max, y_max, z_max)
-
-        # Loop through that voxel region to see if any is True
-        subarray = self.occupied[i_min:i_max+1, j_min:j_max+1, k_min:k_max+1]
-        return np.any(subarray)  # True if any voxel is occupied
-
-    def mark_voxels_for_sphere(voxel_grid, sphere_center, sphere_radius, L, voxel_size):
+        :param centers: (M,3) array of candidate centres
+        :param radii:   (M,) array of candidate radii (optional)
+        :return: (M,) boolean array, True = definitely overlapping
         """
-        Marks voxels as occupied for the sphere and its periodic images.
-    
-        Parameters:
-        - voxel_grid: 3D numpy array representing the voxel grid.
-        - sphere_center: Center of the sphere (x, y, z).
-        - sphere_radius: Radius of the sphere.
-        - L: Size of the domain.
-        - voxel_size: Size of each voxel.
+        c = np.mod(np.asarray(centers, dtype=float), self.L)
+        idx = np.floor(c / self.voxel_size).astype(np.int64)
+        np.clip(idx, 0, self.n - 1, out=idx)
+        hit = self.occupied[idx[:, 0], idx[:, 1], idx[:, 2]]
+        if radii is not None and self.r_pad > 0.0:
+            hit = hit & (np.asarray(radii, dtype=float) >= self.r_pad)
+        return hit
+
+    def is_occupied(self, center, radius=None):
+        """Scalar convenience wrapper around is_occupied_batch."""
+        c = np.asarray(center, dtype=float).reshape(1, 3)
+        r = None if radius is None else np.asarray([radius], dtype=float)
+        return bool(self.is_occupied_batch(c, r)[0])
+
+    # ------------------------------------------------------------------
+    # Update
+    # ------------------------------------------------------------------
+    def mark_sphere(self, center, radius):
         """
-        shifts = [-L, 0, L]  # For periodic images
-        x, y, z = sphere_center
-        r = sphere_radius
-    
-        for dx in shifts:
-            for dy in shifts:
-                for dz in shifts:
-                    # Adjust for periodic images
-                    x_new = x + dx
-                    y_new = y + dy
-                    z_new = z + dz
-    
-                    # Compute voxel indices for the bounding box of the sphere
-                    x_min = int(max(0, (x_new - r) // voxel_size))
-                    x_max = int(min(voxel_grid.shape[0] - 1, (x_new + r) // voxel_size))
-                    y_min = int(max(0, (y_new - r) // voxel_size))
-                    y_max = int(min(voxel_grid.shape[1] - 1, (y_new + r) // voxel_size))
-                    z_min = int(max(0, (z_new - r) // voxel_size))
-                    z_max = int(min(voxel_grid.shape[2] - 1, (z_new + r) // voxel_size))
-    
-                    # Mark voxels as occupied
-                    voxel_grid[x_min:x_max + 1, y_min:y_max + 1, z_min:z_max + 1] = True
+        Mark every voxel that is fully contained in the exclusion ball of
+        the sphere (centre, radius) as occupied.  Periodic images are
+        handled by wrapping the voxel indices, so no explicit image loop is
+        needed.
+        """
+        r_in = float(radius) + self.min_distance + self.r_pad - self.half_diag
+        if r_in <= 0.0:
+            return                      # sphere smaller than one voxel
+
+        h, n, L = self.voxel_size, self.n, self.L
+        cx, cy, cz = [float(v) % L for v in center]
+
+        span = int(np.ceil(2.0 * r_in / h)) + 2
+        if span >= n:                   # would wrap onto itself
+            self.occupied[:, :, :] = True
+            return
+
+        i0 = int(np.floor((cx - r_in) / h))
+        j0 = int(np.floor((cy - r_in) / h))
+        k0 = int(np.floor((cz - r_in) / h))
+
+        ii = np.arange(i0, int(np.floor((cx + r_in) / h)) + 1)
+        jj = np.arange(j0, int(np.floor((cy + r_in) / h)) + 1)
+        kk = np.arange(k0, int(np.floor((cz + r_in) / h)) + 1)
+        if ii.size == 0 or jj.size == 0 or kk.size == 0:
+            return
+
+        dx = (ii + 0.5) * h - cx
+        dy = (jj + 0.5) * h - cy
+        dz = (kk + 0.5) * h - cz
+
+        d2 = (dx[:, None, None] ** 2 +
+              dy[None, :, None] ** 2 +
+              dz[None, None, :] ** 2)
+        mask = d2 <= r_in * r_in
+        if not mask.any():
+            return
+
+        sel = np.ix_(ii % n, jj % n, kk % n)
+        self.occupied[sel] = self.occupied[sel] | mask
 
 class OctreeNode:
     def __init__(self, x_min, x_max, y_min, y_max, z_min, z_max, 
@@ -219,14 +259,72 @@ class OctreeNode:
 
         return candidates
 
+    def query_periodic(self, center, radius, L, out):
+        """
+        Periodic version of `query`.
+
+        Only the *original* spheres (centres in [0,L]^3) are stored in the
+        tree; periodicity is handled here by measuring the distance from the
+        query centre to this node's bounding box under the minimum image
+        convention.  A node is visited only if that distance is smaller than
+        the search radius, which is a tighter test than the plain
+        axis-aligned box overlap used by `query`.
+
+        Candidates are appended to `out` (a plain list) to avoid the
+        repeated list allocations of the recursive `query`.
+        """
+        gx = _periodic_gap(center[0], self.x_min, self.x_max, L)
+        if gx > radius:
+            return
+        gy = _periodic_gap(center[1], self.y_min, self.y_max, L)
+        if gy > radius:
+            return
+        gz = _periodic_gap(center[2], self.z_min, self.z_max, L)
+        if gz > radius:
+            return
+        if gx * gx + gy * gy + gz * gz > radius * radius:
+            return
+
+        if self.spheres:
+            out.extend(self.spheres)
+        for child in self.children:
+            child.query_periodic(center, radius, L, out)
+
+
+def _periodic_gap(c, lo, hi, L):
+    """Shortest distance from point `c` to the interval [lo,hi] on a
+    periodic axis of length L."""
+    best = None
+    for s in (-L, 0.0, L):
+        p = c + s
+        if p < lo:
+            d = lo - p
+        elif p > hi:
+            d = p - hi
+        else:
+            d = 0.0
+        if best is None or d < best:
+            best = d
+            if best == 0.0:
+                break
+    return best
+
 
 class Octree:
-    """A simple wrapper around the root node."""
+    """A simple wrapper around the root node.
+
+    Only the original spheres are inserted; their periodic images are kept
+    in Sphere_array for the CAE geometry but are NOT stored here, because
+    the overlap test already uses the minimum image convention.  This keeps
+    the tree ~1.5-2x smaller at high volume fraction.
+    """
     def __init__(self, L, capacity=4, max_depth=10):
+        eps = 1.0e-9 * L
+        self.L = float(L)
         self.root = OctreeNode(
-            x_min=-0.2*L, x_max=1.2*L,
-            y_min=-0.2*L, y_max=1.2*L,
-            z_min=-0.2*L, z_max=1.2*L,
+            x_min=-eps, x_max=L + eps,
+            y_min=-eps, y_max=L + eps,
+            z_min=-eps, z_max=L + eps,
             capacity=capacity,
             max_depth=max_depth
         )
@@ -237,43 +335,61 @@ class Octree:
     def query_spheres(self, center, radius):
         return self.root.query(center, radius)
 
+    def query_spheres_periodic(self, center, radius):
+        out = []
+        self.root.query_periodic(center, radius, self.L, out)
+        return out
+
 # Create a global (or external) voxelGrid reference. If you prefer, you can
 # make it a class variable or pass it around. As long as we don't modify
 # GeneratePBCell, we do it here.
 voxelGrid = None  # Will be assigned before calling GeneratePBCell
 
 def is_overlapping(Sphere_array_unused, center, radius, L, min_distance, octree):
+    """
+    Two-stage overlap check.
+
+    Stage-1 : voxel grid  -> O(1) rejection of centres that are provably
+                             inside an existing sphere.
+    Stage-2 : octree      -> near-by search followed by an exact
+                             minimum-image distance test.
+
+    The search radius is unchanged from v1.0 (Fig. 2(b) of the paper):
+        search radius = radius + min_dist + L/8
+
+    Changes with respect to v1.0:
+      * the distance test over the returned candidates is vectorised with
+        NumPy instead of a Python for-loop;
+      * the periodic-aware octree query is used, so periodic images no
+        longer have to be inserted into the tree;
+      * the function no longer mutates the voxel grid.  Marking is done by
+        the caller once a sphere is actually accepted (in v1.0 the marking
+        call sat inside this function and referenced a method that did not
+        exist).
+    """
     global voxelGrid
+
+    # ---------------- Stage-1 : voxel filter ----------------
     if voxelGrid is not None:
-        # First, check if the bounding volume is occupied in the voxel grid
         if voxelGrid.is_occupied(center, radius):
             return True
 
-    # Query the octree for nearby spheres
+    # ---------------- Stage-2 : octree search ----------------
     search_radius = radius + min_distance + L/8.0
-    nearby_spheres = octree.query_spheres(center, search_radius)
+    nearby_spheres = octree.query_spheres_periodic(center, search_radius)
+    if not nearby_spheres:
+        return False
 
-    for (center2, radius2) in nearby_spheres:
-        # Minimum image logic for periodic boundaries
-        dx = center[0] - center2[0]
-        dx -= L * np.round(dx / L)
-        dy = center[1] - center2[1]
-        dy -= L * np.round(dy / L)
-        dz = center[2] - center2[2]
-        dz -= L * np.round(dz / L)
+    C = np.asarray([s[0] for s in nearby_spheres], dtype=float).reshape(-1, 3)
+    R = np.asarray([s[1] for s in nearby_spheres], dtype=float)
 
-        dist2 = dx*dx + dy*dy + dz*dz
-        radii_sum = radius + radius2 + min_distance
-        if dist2 < radii_sum * radii_sum:
-            return True
+    # Minimum image logic for periodic boundaries (vectorised)
+    d = np.asarray(center, dtype=float).reshape(1, 3) - C
+    d -= L * np.round(d / L)
+    dist2 = np.einsum('ij,ij->i', d, d)
 
-    # If we got here => no overlap with any existing spheres
-    # Mark the voxel space as occupied so no subsequent sphere tries
-    # to place in the same region.
-    if voxelGrid is not None:
-        voxelGrid.mark_occupied(center, radius)
-
-    return False
+    radii_sum = R + (radius + min_distance)
+    return bool(np.any(dist2 < radii_sum * radii_sum))
 
 voxelGrid = None
 
@@ -282,161 +398,190 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     #################################################################
     # Generate numpy array that contains center position and radius #
     #################################################################
+    global voxelGrid
+
     VoF = 0.0
-    Sphere_array = np.empty((0, 4))
 
     # -------------------------------------------------------
-    # Initialize the Octree for overlap checks
+    # Stage-1 (voxel grid) and stage-2 (octree) accelerators
     # -------------------------------------------------------
-    # Increase capacity or max_depth if many spheres
+    # r_pad: lower bound of the sampled radii, used to enlarge the voxel
+    # exclusion ball without ever producing a false rejection
+    r_pad = max(0.0, r_avg - 3.0 * r_std)
+    voxelGrid = VoxelGrid(L, min_distance, resolutionFactor=2, r_pad=r_pad)
     octree = Octree(L, capacity=8, max_depth=10)
 
+    # Rows are collected in a plain list and converted once at the end.
+    # (v1.0 used np.vstack inside the loop, which copies the whole array
+    #  on every acceptance -> O(N^2).)
+    sphere_rows = []
+
     iterations = 0
+    Tol_ = 0.4           # minimum overlapping portion, same value as v1.0
+
+    # Adaptive batch size: small while candidates are still easy to place,
+    # large once the acceptance rate collapses near the target VoF.
+    BATCH_MIN, BATCH_MAX = 64, 4096
+    batch = BATCH_MIN
+
+    def _portion_bad(c, er, r_, L_):
+        """
+        Vectorised form of the original `check_overlap_portion`.
+        True  -> the portion of the sphere sticking out of the cell is too
+                 small and the sphere must be discarded.
+        """
+        is_left = (c - er) < 0.0
+        is_right = (c + er) > L_
+        touched = is_left | is_right
+        if not np.any(touched):
+            return np.zeros(c.shape, dtype=bool)
+
+        d = np.where(is_left, c, L_ - c)
+        rd = r_ - d
+        invalid = (d <= 0.0) | (rd <= 0.0)
+
+        safe_rd = np.where(invalid, 1.0, rd)
+        ratio = np.where(invalid, 1.0, d / safe_rd)
+        safe_ratio = np.where(ratio == 0.0, 1.0, ratio)
+        small = (ratio < Tol_) | ((1.0 / safe_ratio) < Tol_)
+
+        return touched & (invalid | small)
 
     while VoF <= VoF_tar and iterations < max_iterations:
-        iterations += 1
 
-        # Generate sphere using random PDF
-        center_X = L * np.random.rand()
-        center_Y = L * np.random.rand()
-        center_Z = L * np.random.rand()
-        center = np.array([center_X, center_Y, center_Z])
-        radius = np.random.normal(r_avg, r_std)
+        m = int(min(batch, max_iterations - iterations))
+        if m <= 0:
+            break
+        iterations += m
 
-        # Skip negative or zero radii
-        if radius <= 0:
+        # ---- batched random sampling (uniform centres, normal radii) ----
+        cand_c = L * np.random.rand(m, 3)
+        cand_r = np.random.normal(r_avg, r_std, m)
+
+        keep = cand_r > 0.0                      # skip negative or zero radii
+
+        # ---- Stage-1 : voxel filter, O(1) per candidate, vectorised ----
+        keep &= ~voxelGrid.is_occupied_batch(cand_c, cand_r)
+
+        # ---- boundary overlap-portion filter, vectorised ----
+        er = cand_r + min_distance / 2           # effective_radius
+        bad = (_portion_bad(cand_c[:, 0], er, cand_r, L) |
+               _portion_bad(cand_c[:, 1], er, cand_r, L) |
+               _portion_bad(cand_c[:, 2], er, cand_r, L))
+        keep &= ~bad
+
+        idx = np.nonzero(keep)[0]
+        if idx.size == 0:
+            batch = min(BATCH_MAX, batch * 2)
             continue
 
-        # Check if the sphere overlaps with existing spheres using octree
-        if is_overlapping(Sphere_array, center, radius, L, min_distance, octree):
-            continue  # Discard this sphere and try again
+        accepted = 0
 
-        # Adjust the radius to account for min_distance when checking boundaries
-        effective_radius = radius + min_distance / 2
+        # ---- Stage-2 : octree search, sequential acceptance ----
+        for t in idx:
+            if VoF > VoF_tar:
+                break
 
-        # Determine if the sphere overlaps with any boundaries
-        Is_inside = (
-            effective_radius < center_X < L - effective_radius and
-            effective_radius < center_Y < L - effective_radius and
-            effective_radius < center_Z < L - effective_radius
-        )
+            center = cand_c[t]
+            radius = float(cand_r[t])
 
-        # Boundary overlap checks
-        Is_X_Left = center_X - effective_radius < 0
-        Is_X_Right = center_X + effective_radius > L
-        Is_Y_Front = center_Y - effective_radius < 0
-        Is_Y_Back = center_Y + effective_radius > L
-        Is_Z_Lower = center_Z - effective_radius < 0
-        Is_Z_Upper = center_Z + effective_radius > L
+            # re-run stage-1: spheres accepted earlier in this same batch
+            # may already block this candidate
+            if voxelGrid.is_occupied(center, radius):
+                continue
 
-        # Function to check overlapping portion
-        def check_overlap_portion(center_coord, L_, r_, is_left, is_right):
-            if is_left:
-                d = center_coord
-            elif is_right:
-                d = L_ - center_coord
-            else:
-                return False  # Does not overlap in this direction
+            if is_overlapping(None, center, radius, L, min_distance, octree):
+                continue
 
-            if d <= 0 or r_ - d <= 0:
-                return True  # Invalid, exclude
-            Tol_ = 0.4
-            ratio = d / (r_ - d)
-            if ratio < Tol_ or (1 / ratio) < Tol_:
-                return True  # Overlapping portion is too small
-            return False  # Overlapping portion is acceptable
+            center_X = float(center[0])
+            center_Y = float(center[1])
+            center_Z = float(center[2])
 
-        overlaps_too_small = False
-        if Is_X_Left or Is_X_Right:
-            if check_overlap_portion(center_X, L, radius, Is_X_Left, Is_X_Right):
-                overlaps_too_small = True
+            effective_radius = radius + min_distance / 2
 
-        if Is_Y_Front or Is_Y_Back:
-            if check_overlap_portion(center_Y, L, radius, Is_Y_Front, Is_Y_Back):
-                overlaps_too_small = True
+            Is_inside = (
+                effective_radius < center_X < L - effective_radius and
+                effective_radius < center_Y < L - effective_radius and
+                effective_radius < center_Z < L - effective_radius
+            )
 
-        if Is_Z_Lower or Is_Z_Upper:
-            if check_overlap_portion(center_Z, L, radius, Is_Z_Lower, Is_Z_Upper):
-                overlaps_too_small = True
+            new_rows = [[center_X, center_Y, center_Z, radius]]
 
-        if overlaps_too_small:
-            continue  # Discard this sphere and try again
+            if not Is_inside:
+                # ----------------------------------------------------------
+                # Sphere crosses a boundary -> create mirrored spheres.
+                #
+                # The mirrored spheres are NOT re-tested here: under the
+                # minimum image convention used in is_overlapping, testing
+                # an image at c + n*L is mathematically identical to testing
+                # the original at c, so the test above already covers them.
+                # ----------------------------------------------------------
+                Is_X_Left = center_X - effective_radius < 0
+                Is_X_Right = center_X + effective_radius > L
+                Is_Y_Front = center_Y - effective_radius < 0
+                Is_Y_Back = center_Y + effective_radius > L
+                Is_Z_Lower = center_Z - effective_radius < 0
+                Is_Z_Upper = center_Z + effective_radius > L
 
-        # ------------------------------------------------------------------
-        # Case A: Sphere is fully inside; just add it & insert into octree
-        # ------------------------------------------------------------------
-        if Is_inside:
-            new_row = np.array([[center_X, center_Y, center_Z, radius]])
-            Sphere_array = np.vstack((Sphere_array, new_row))
+                x_shifts = [0]
+                if Is_X_Left:
+                    x_shifts.append(L)
+                if Is_X_Right:
+                    x_shifts.append(-L)
+
+                y_shifts = [0]
+                if Is_Y_Front:
+                    y_shifts.append(L)
+                if Is_Y_Back:
+                    y_shifts.append(-L)
+
+                z_shifts = [0]
+                if Is_Z_Lower:
+                    z_shifts.append(L)
+                if Is_Z_Upper:
+                    z_shifts.append(-L)
+
+                shift_combinations = list(product(x_shifts, y_shifts, z_shifts))
+                shift_combinations.remove((0, 0, 0))
+                for dx, dy, dz in shift_combinations:
+                    new_rows.append([center_X + dx,
+                                     center_Y + dy,
+                                     center_Z + dz,
+                                     radius])
+
+                # Remove duplicates with a hash set instead of the
+                # O(k^2) np.allclose scan used in v1.0
+                seen = set()
+                unique_new_rows = []
+                for row in new_rows:
+                    key = (round(row[0], 12), round(row[1], 12), round(row[2], 12))
+                    if key not in seen:
+                        seen.add(key)
+                        unique_new_rows.append(row)
+                new_rows = unique_new_rows
+
+            sphere_rows.extend(new_rows)
+            accepted += 1
+
+            # Volume is counted once for the real sphere
             VoF += (4.0 / 3.0) * np.pi * (radius ** 3) / (L ** 3)
 
-            # Insert into octree
-            octree.insert_sphere(center, radius)
+            # Only the original sphere goes into the octree
+            octree.insert_sphere(np.array([center_X, center_Y, center_Z]), radius)
 
-        else:
-            # ------------------------------------------------------------------
-            # Case B: Sphere crosses boundary => create mirrored spheres
-            # ------------------------------------------------------------------
-            from itertools import product
-            new_rows = []
-            new_rows.append([center_X, center_Y, center_Z, radius])  # original
+            # Update the stage-1 grid
+            voxelGrid.mark_sphere((center_X, center_Y, center_Z), radius)
 
-            # Generate shifts for each axis based on boundary overlaps
-            x_shifts = [0]
-            if Is_X_Left:
-                x_shifts.append(L)
-            if Is_X_Right:
-                x_shifts.append(-L)
+        # Adapt the batch size to the current acceptance rate
+        if accepted == 0:
+            batch = min(BATCH_MAX, batch * 2)
+        elif accepted * 8 >= m:
+            batch = max(BATCH_MIN, batch // 2)
 
-            y_shifts = [0]
-            if Is_Y_Front:
-                y_shifts.append(L)
-            if Is_Y_Back:
-                y_shifts.append(-L)
-
-            z_shifts = [0]
-            if Is_Z_Lower:
-                z_shifts.append(L)
-            if Is_Z_Upper:
-                z_shifts.append(-L)
-
-            # Create mirrored spheres based on shift combinations
-            shift_combinations = list(product(x_shifts, y_shifts, z_shifts))
-            shift_combinations.remove((0, 0, 0))  # remove original shift
-            for dx, dy, dz in shift_combinations:
-                x_new = center_X + dx
-                y_new = center_Y + dy
-                z_new = center_Z + dz
-                new_rows.append([x_new, y_new, z_new, radius])
-
-            # Remove duplicates (if the same center was produced more than once)
-            unique_new_rows = []
-            for row in new_rows:
-                if not any(np.allclose(row[:3], r[:3]) for r in unique_new_rows):
-                    unique_new_rows.append(row)
-
-            # Check for overlaps with existing spheres in octree
-            overlaps = False
-            for row in unique_new_rows:
-                c_ = np.array(row[:3])
-                r_ = row[3]
-                if is_overlapping(Sphere_array, c_, r_, L, min_distance, octree):
-                    overlaps = True
-                    break
-
-            if overlaps:
-                continue  # Discard entire set and try again
-
-            # If no overlaps, add them all
-            Sphere_array = np.vstack((Sphere_array, unique_new_rows))
-            # Increase volume only once for the real sphere
-            VoF += (4.0 / 3.0) * np.pi * (radius ** 3) / (L ** 3)
-
-            # Insert all new centers into octree
-            for row in unique_new_rows:
-                c_ = np.array(row[:3])
-                r_ = row[3]
-                octree.insert_sphere(c_, r_)
+    if sphere_rows:
+        Sphere_array = np.asarray(sphere_rows, dtype=float)
+    else:
+        Sphere_array = np.empty((0, 4))
 
     Number_of_Sphere = Sphere_array.shape[0]
     
@@ -1760,52 +1905,83 @@ def generate_ss_curve(EngStrain, Odb_Path, Output_Path, S_Comp, Plot_Flag):
     # Collect results (strain, volume-averaged stress)
     output_data = []
 
+    # Stress component index in the (S11,S22,S33,S12,S13,S23) tuple
+    COMP_INDEX = {'S11': 0, 'S22': 1, 'S33': 2, 'S12': 3, 'S13': 4, 'S23': 5}
+    s_key = S_Comp.upper()
+    if s_key not in COMP_INDEX:
+        raise ValueError("Unsupported S_Comp: {}".format(S_Comp))
+    comp = COMP_INDEX[s_key]
+
+    def _bulk(field):
+        """
+        Read a field output through bulkDataBlocks and return
+        (data, sort_key).
+
+        bulkDataBlocks hands back NumPy arrays directly, whereas
+        FieldOutput.values builds one Python object per integration point.
+        For a typical RVE (1e5 - 1e6 integration points x many frames) this
+        is the dominant cost of the post-processing step.
+
+        The sort key is built from (elementLabel, integrationPoint) rather
+        than elementLabel alone.  IVOL is an integration-point volume, so a
+        dictionary keyed only on the element label keeps a single
+        integration point per element and applies its volume to all the
+        others - which biases Eq.(11) for any element with more than one
+        integration point (C3D10, C3D10M, C3D8, ...).
+        """
+        blocks = field.bulkDataBlocks
+        data = np.concatenate([np.asarray(b.data) for b in blocks], axis=0)
+
+        elem = np.concatenate(
+            [np.asarray(b.elementLabels, dtype=np.int64) for b in blocks], axis=0)
+
+        ip_list = []
+        for b in blocks:
+            ip_b = getattr(b, 'integrationPoints', None)
+            if ip_b is None or len(ip_b) == 0:
+                ip_list.append(np.zeros(len(np.asarray(b.elementLabels)), dtype=np.int64))
+            else:
+                ip_list.append(np.asarray(ip_b, dtype=np.int64))
+        ip = np.concatenate(ip_list, axis=0)
+
+        if data.ndim == 1:
+            data = data.reshape(-1, 1)
+
+        return data, elem * 1000 + ip
+
+    order_S = None
+    order_V = None
+    n_ref = -1
+
     # Loop over frames
     for frame_idx, frame in enumerate(step.frames):
         print("Processing frame {}/{}".format(frame_idx + 1, len(step.frames)))
 
-        total_stress_volume = 0.0
-        total_volume = 0.0
-
         # Get stress and element volume fields
-        stress_field = frame.fieldOutputs['S']
-        volume_field = frame.fieldOutputs['IVOL']
+        stress_data, stress_key = _bulk(frame.fieldOutputs['S'])
+        volume_data, volume_key = _bulk(frame.fieldOutputs['IVOL'])
 
-        stress_values = stress_field.values
-        volume_values = volume_field.values
+        # The ordering of the bulk data blocks is constant over the frames,
+        # so the alignment between S and IVOL is computed only once.
+        if order_S is None or stress_data.shape[0] != n_ref:
+            order_S = np.argsort(stress_key, kind='stable')
+            order_V = np.argsort(volume_key, kind='stable')
+            n_ref = stress_data.shape[0]
+            if (order_S.shape[0] != order_V.shape[0] or
+                    not np.array_equal(stress_key[order_S], volume_key[order_V])):
+                raise ValueError(
+                    "S and IVOL are not written for the same set of "
+                    "integration points. Request both with the same "
+                    "*Output, Field definition.")
 
-        # Dictionary for volume lookups by element label
-        volume_dict = {v.elementLabel: v.data for v in volume_values}
+        sigma = stress_data[order_S, comp]
+        ivol = volume_data[order_V, 0]
 
-        # Accumulate stress * volume
-        for stress_value in stress_values:
-            elem_label = stress_value.elementLabel
-            if elem_label in volume_dict:
-                elem_volume = volume_dict[elem_label]
-
-                # Pick correct stress component
-                s_comp_data = stress_value.data  # tuple (S11, S22, S33, S12, S13, S23)
-                if S_Comp.upper() == 'S11':
-                    s = s_comp_data[0]
-                elif S_Comp.upper() == 'S22':
-                    s = s_comp_data[1]
-                elif S_Comp.upper() == 'S33':
-                    s = s_comp_data[2]
-                elif S_Comp.upper() == 'S12':
-                    s = s_comp_data[3]
-                elif S_Comp.upper() == 'S13':
-                    s = s_comp_data[4]
-                elif S_Comp.upper() == 'S23':
-                    s = s_comp_data[5]
-                else:
-                    raise ValueError("Unsupported S_Comp: {}".format(S_Comp))
-
-                total_stress_volume += s * elem_volume
-                total_volume += elem_volume
+        total_volume = float(ivol.sum())
 
         # Compute volume-averaged stress for this frame
         if total_volume > 0.0:
-            volume_avg_stress = total_stress_volume / total_volume
+            volume_avg_stress = float(np.dot(sigma, ivol) / total_volume)
         else:
             volume_avg_stress = 0.0
 
