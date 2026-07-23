@@ -1513,7 +1513,7 @@ def GeneratePBCell(Is_Porous, L, L_mesh, r_avg, r_std, VoF_tar, min_distance,
     
     # Create field output for homogenization
     mdb.models['Model-1'].FieldOutputRequest(name='For_Volume_Avarege', 
-        createStepName='Step-1', variables=('S', 'EVOL'), numIntervals=10, 
+        createStepName='Step-1', variables=('S', 'IVOL'), numIntervals=10, 
         timeMarks=OFF)
     mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(
         numIntervals=10, timeMarks=OFF)
@@ -1769,7 +1769,7 @@ def generate_ss_curve(EngStrain, Odb_Path, Output_Path, S_Comp, Plot_Flag):
 
         # Get stress and element volume fields
         stress_field = frame.fieldOutputs['S']
-        volume_field = frame.fieldOutputs['EVOL']
+        volume_field = frame.fieldOutputs['IVOL']
 
         stress_values = stress_field.values
         volume_values = volume_field.values
